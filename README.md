@@ -20,9 +20,9 @@ npm run preview
 
 ## 🔐 Demo Credentials
 
-- **Mobile:** 9756934671
+<!-- - **Mobile:** 9756934671
 - **Password:** password123
-- **Role:** Super Admin
+- **Role:** Super Admin -->
 
 ## 📋 Features
 

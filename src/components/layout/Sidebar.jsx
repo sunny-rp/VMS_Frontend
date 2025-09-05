@@ -112,17 +112,17 @@ const Sidebar = ({ isOpen, onClose }) => {
       items: [
         {
           name: "Visitor Management",
-          href: "/visitor-management/visitors",
+          href: "/visitors", // Updated to point to the main visitors page
           roles: ["admin", "super_admin", "reception"],
         },
         {
           name: "Check In Check Out",
-          href: "/visitor-management/checkin",
+          href: "/checkinout", // Updated to point to the new CheckInOut page
           roles: ["admin", "super_admin", "reception"],
         },
         {
           name: "Appointments",
-          href: "/visitor-management/appointments",
+          href: "/appointment", // Updated to point to the new Appointment page
           roles: ["admin", "super_admin", "reception"],
         },
       ],
@@ -133,9 +133,9 @@ const Sidebar = ({ isOpen, onClose }) => {
       name: "REPORTS", // Changed from "DOCUMENTS" to "REPORTS" to match the image
       icon: FileText, // Document/file icon (seventh icon in image)
       items: [
-        { name: "Check In Check Out Report", href: "/reports/checkin-checkout", roles: ["admin", "super_admin"] }, // Updated to match REPORTS modules
-        { name: "Feedback Report", href: "/reports/feedback", roles: ["admin", "super_admin"] }, // Updated to match REPORTS modules
-        { name: "Vehicle Invoice Report", href: "/reports/vehicle-invoice", roles: ["admin", "super_admin"] }, // Updated to match REPORTS modules
+        { name: "Check In Check Out Report", href: "/checkin-checkout-report", roles: ["admin", "super_admin"] },
+        { name: "Feedback Report", href: "/feedback-report", roles: ["admin", "super_admin"] },
+        { name: "Vehicle Invoice Report", href: "/vehicle-invoice-report", roles: ["admin", "super_admin"] },
       ],
       roles: ["admin", "super_admin"],
     },

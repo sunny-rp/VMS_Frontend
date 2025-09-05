@@ -28,6 +28,11 @@ import RoleWiseScreenMapping from "./pages/RoleWiseScreenMapping" // Added RoleW
 import UserWiseScreenMapping from "./pages/UserWiseScreenMapping" // Added UserWiseScreenMapping import
 import ApprovalConfiguration from "./pages/ApprovalConfiguration" // Added ApprovalConfiguration import
 import WorkFlow from "./pages/WorkFlow" // Added WorkFlow import
+import Appointment from "./pages/Appointment" // Added Appointment import
+import CheckInOut from "./pages/CheckInOut" // Added CheckInOut import
+import CheckInCheckOutReport from "./pages/CheckInCheckOutReport" // Added CheckInCheckOutReport import
+import VehicleInvoiceReport from "./pages/VehicleInvoiceReport" // Added VehicleInvoiceReport import
+import FeedbackReport from "./pages/FeedbackReport" // Added FeedbackReport import
 
 function App() {
   const { isAuthenticated } = useAuth()
@@ -68,7 +73,13 @@ function App() {
         <Route path="approval-configuration" element={<ApprovalConfiguration />} />{" "}
         {/* Added ApprovalConfiguration route */}
         <Route path="workflow" element={<WorkFlow />} /> {/* Added WorkFlow route */}
-        
+        <Route path="appointment" element={<Appointment />} /> {/* Added Appointment route */}
+        <Route path="checkinout" element={<CheckInOut />} /> {/* Added CheckInOut route */}
+        <Route path="checkin-checkout-report" element={<CheckInCheckOutReport />} />{" "}
+        {/* Added CheckInCheckOutReport route */}
+        <Route path="vehicle-invoice-report" element={<VehicleInvoiceReport />} />{" "}
+        {/* Added VehicleInvoiceReport route */}
+        <Route path="feedback-report" element={<FeedbackReport />} /> {/* Added FeedbackReport route */}
         <Route
           path="users"
           element={
