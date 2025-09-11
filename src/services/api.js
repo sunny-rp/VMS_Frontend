@@ -1,360 +1,417 @@
-// Mock API service with realistic delays
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+// services/api.js
+// API Configuration
+const API_BASE_URL =
+  import.meta.env.VITE_PUBLIC_API_BASE_URL ||
+  "http://192.168.80.85:5000/api/v1";
 
-// Mock users data
-const mockUsers = [
-  {
-    id: 1,
-    mobile: "9756934671",
-    name: "Adhish Pandit",
-    roles: ["super_admin"],
-    company: "SHUFAB",
-    status: "active",
-  },
-  {
-    id: 2,
-    mobile: "9205231705",
-    name: "Reception User",
-    roles: ["reception"],
-    company: "SHUFAB",
-    status: "active",
-  },
-  {
-    id: 3,
-    mobile: "9876543210",
-    name: "Security Guard",
-    roles: ["security"],
-    company: "SHUFAB",
-    status: "active",
-  },
-  {
-    id: 4,
-    mobile: "9123456789",
-    name: "Admin User",
-    roles: ["admin"],
-    company: "SHUFAB",
-    status: "active",
-  },
-  {
-    id: 5,
-    mobile: "9988776655",
-    name: "Reception 2",
-    roles: ["reception"],
-    company: "SHUFAB",
-    status: "inactive",
-  },
-]
+// Utility: safe JSON parsing for responses that may not have a body
+const parseJsonSafe = async (response) => {
+  try {
+    return await response.json();
+  } catch {
+    return {};
+  }
+};
 
-// Mock visitors data
-const mockVisitors = [
-  {
-    id: "VST00014",
-    name: "Suhail",
-    mobile: "9756934671",
-    company: "M A Enterprise",
-    status: "active",
-    checkInTime: "2025-01-09T09:30:00Z",
-    hostId: "USR00026",
-    hostName: "PRAKASH SHARMA",
-    passType: "one_day",
+// Utility function to read cookies directly
+const getCookie = (name) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(";").shift();
+  return null;
+};
+
+// HTTP client utility
+const apiClient = {
+  async request(endpoint, options = {}) {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const config = {
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+      ...options,
+      credentials: options.credentials ?? "include",
+    };
+
+    const token = getCookie("accessToken");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(url, config);
+
+      // Avoid refresh flow for login, refresh-token, and logout endpoints
+      const isAuthEndpoint =
+        endpoint === "/user/login" ||
+        endpoint === "/user/refresh-token" ||
+        endpoint === "/user/logout";
+
+      if (response.status === 401 && !isAuthEndpoint) {
+        const refreshed = await this.refreshToken();
+        if (refreshed) {
+          // Retry the original request with new token
+          config.headers.Authorization = `Bearer ${refreshed}`;
+          const retryResponse = await fetch(url, config);
+          if (retryResponse.ok) {
+            return await parseJsonSafe(retryResponse);
+          }
+        }
+        // If refresh failed, redirect to login
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!response.ok) {
+        // Tolerate 404 on logout specifically (some backends return 404 if already logged out)
+        if (endpoint === "/user/logout" && response.status === 404) {
+          return { ok: false, status: 404 };
+        }
+        const errorData = await parseJsonSafe(response);
+        throw new Error(
+          errorData.message || `HTTP error! status: ${response.status}`
+        );
+      }
+
+      return await parseJsonSafe(response);
+    } catch (error) {
+      console.error("API request failed:", error);
+      throw error;
+    }
   },
-  {
-    id: "VST00013",
-    name: "Suhail",
-    mobile: "9756934671",
-    company: "M A Enterprise",
-    status: "active",
-    checkInTime: "2025-01-09T10:15:00Z",
-    hostId: "USR00025",
-    hostName: "SACHENDAR SINGH",
-    passType: "one_day",
+
+  async getValidToken() {
+    return getCookie("accessToken");
   },
-  {
-    id: "VST00012",
-    name: "Suman Singh",
-    mobile: "9953000483",
-    company: "Flomic global logistics",
-    status: "active",
-    checkInTime: "2025-01-09T08:45:00Z",
-    hostId: "USR00024",
-    hostName: "PUNIT SHARMA",
-    passType: "one_day",
+
+  async refreshToken() {
+    try {
+      const refreshToken = getCookie("refreshToken");
+      if (!refreshToken) return null;
+
+      const response = await fetch(`${API_BASE_URL}/user/refresh-token`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (response.ok) {
+        const data = await parseJsonSafe(response);
+        // Some APIs return { token }, others { accessToken }
+        return data.token || data.accessToken || null;
+      }
+      return null;
+    } catch (error) {
+      console.error("Token refresh failed:", error);
+      return null;
+    }
   },
-  {
-    id: "VST00011",
-    name: "Arun Parihar",
-    mobile: "9205231705",
-    company: "Versatile Bonds Pvt Ltd",
-    status: "checked_out",
-    checkInTime: "2025-01-09T07:30:00Z",
-    checkOutTime: "2025-01-09T11:45:00Z",
-    hostId: "USR00023",
-    hostName: "ASHOK KUMAR BIRLA",
-    passType: "one_day",
+
+  async getAuthData() {
+    const token = getCookie("accessToken");
+    if (!token) return null;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/user/me`, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await parseJsonSafe(response);
+        return {
+          user: data.user || data.data,
+          token,
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error("Error getting auth data from backend:", error);
+      return null;
+    }
   },
-  {
-    id: "VST00010",
-    name: "SATISH",
-    mobile: "8010979807",
-    company: "abc pvt. ltd",
-    status: "active",
-    checkInTime: "2025-01-09T09:00:00Z",
-    hostId: "USR00022",
-    hostName: "NEERAJ KUMAR",
-    passType: "extended",
-  },
-  {
-    id: "VST00009",
-    name: "Ujala",
-    mobile: "8700150314",
-    company: "jasmine",
-    status: "active",
-    checkInTime: "2025-01-09T10:30:00Z",
-    hostId: "USR00021",
-    hostName: "RIDHAM BEHL",
-    passType: "one_day",
-  },
-  {
-    id: "VST00008",
-    name: "Shivam Pandey",
-    mobile: "8240056639",
-    company: "bajaj motorcycle",
-    status: "checked_out",
-    checkInTime: "2025-01-09T08:15:00Z",
-    checkOutTime: "2025-01-09T12:30:00Z",
-    hostId: "USR00020",
-    hostName: "SANJEEV KUMAR",
-    passType: "one_day",
-  },
-  {
-    id: "VST00007",
-    name: "Sabila Khatun",
-    mobile: "7700846446",
-    company: "shufab",
-    status: "active",
-    checkInTime: "2025-01-09T09:45:00Z",
-    hostId: "USR00019",
-    hostName: "CHITTA RANJAN GADANAYAK",
-    passType: "extended",
-  },
-  {
-    id: "VST00006",
-    name: "KUNDAN Kumar",
-    mobile: "9205231705",
-    company: "bajaj motorcycle",
-    status: "active",
-    checkInTime: "2025-01-09T11:00:00Z",
-    hostId: "USR00018",
-    hostName: "GURDEEP WALIA",
-    passType: "one_day",
-  },
-  {
-    id: "VST00005",
-    name: "Nanhe",
-    mobile: "9311058383",
-    company: "signature syndicate service",
-    status: "checked_out",
-    checkInTime: "2025-01-09T07:45:00Z",
-    checkOutTime: "2025-01-09T10:15:00Z",
-    hostId: "USR00017",
-    hostName: "RAVI SAXENA",
-    passType: "one_day",
-  },
-  {
-    id: "VST00004",
-    name: "Santhosh",
-    mobile: "9205231705",
-    company: "bajaj motorcycle",
-    status: "active",
-    checkInTime: "2025-01-09T08:30:00Z",
-    hostId: "USR00016",
-    hostName: "ABHISHEK SINGH JADON",
-    passType: "extended",
-  },
-  {
-    id: "VST00003",
-    name: "Adhish Pandit",
-    mobile: "9756934671",
-    company: "SHUFAB",
-    status: "checked_out",
-    checkInTime: "2025-01-09T06:30:00Z",
-    checkOutTime: "2025-01-09T18:00:00Z",
-    hostId: "USR00015",
-    hostName: "ASHISH KUMAR",
-    passType: "one_day",
-  },
-]
+};
 
 export const authAPI = {
   login: async ({ mobile, password }) => {
-    await delay(1000) // Simulate network delay
+    const response = await fetch(`${API_BASE_URL}/user/login`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mobile, password }),
+    });
 
-    const user = mockUsers.find((u) => u.mobile === mobile)
-
-    if (!user || password !== "password123") {
-      throw new Error("Invalid mobile number or password")
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        errorData.message || `HTTP error! status: ${response.status}`
+      );
     }
 
-    return {
-      token: `mock_token_${user.id}_${Date.now()}`,
-      user: {
-        id: user.id,
-        name: user.name,
-        mobile: user.mobile,
-        roles: user.roles,
-        company: user.company,
-      },
+    return await response.json();
+  },
+
+  register: async (userData) => {
+    const response = await fetch(`${API_BASE_URL}/user/register`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        errorData.message || `HTTP error! status: ${response.status}`
+      );
+    }
+
+    return await response.json();
+  },
+
+  // ✅ Fixed: route through apiClient so Authorization header is attached from cookie
+  logout: async () => {
+    try {
+      await apiClient.request("/user/logout", {
+        method: "POST",
+        // If your API requires refreshToken too, uncomment:
+        // body: JSON.stringify({ refreshToken: getCookie("refreshToken") }),
+      });
+    } catch (error) {
+      // Don't block local logout; just log
+      console.warn(
+        "Logout API call failed (proceeding to local logout):",
+        error
+      );
     }
   },
-}
+
+  checkAuth: async () => {
+    const token = getCookie("accessToken");
+    if (!token) return null;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/user/me`, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        return await response.json();
+      }
+      return null;
+    } catch (error) {
+      console.error("Auth check failed:", error);
+      return null;
+    }
+  },
+};
 
 export const visitorsAPI = {
   getAll: async (filters = {}) => {
-    await delay(500)
-    let filteredVisitors = [...mockVisitors]
+    const queryParams = new URLSearchParams();
+    if (filters.search) queryParams.append("search", filters.search);
+    if (filters.status) queryParams.append("status", filters.status);
+    if (filters.passType) queryParams.append("passType", filters.passType);
 
-    if (filters.search) {
-      const search = filters.search.toLowerCase()
-      filteredVisitors = filteredVisitors.filter(
-        (v) =>
-          v.name.toLowerCase().includes(search) ||
-          v.mobile.includes(search) ||
-          v.company.toLowerCase().includes(search) ||
-          (v.hostName && v.hostName.toLowerCase().includes(search)),
-      )
-    }
-
-    if (filters.status) {
-      filteredVisitors = filteredVisitors.filter((v) => v.status === filters.status)
-    }
-
-    if (filters.passType) {
-      filteredVisitors = filteredVisitors.filter((v) => v.passType === filters.passType)
-    }
-
-    return {
-      data: filteredVisitors,
-      total: filteredVisitors.length,
-    }
+    const endpoint = `/visitors${
+      queryParams.toString() ? `?${queryParams.toString()}` : ""
+    }`;
+    return await apiClient.request(endpoint);
   },
 
   checkIn: async (visitorData) => {
-    await delay(800)
-    const newVisitor = {
-      id: `VST${String(Date.now()).slice(-5)}`,
-      ...visitorData,
-      status: "active",
-      checkInTime: new Date().toISOString(),
-    }
-    mockVisitors.unshift(newVisitor)
-    return newVisitor
+    return await apiClient.request("/visitors/checkin", {
+      method: "POST",
+      body: JSON.stringify(visitorData),
+    });
   },
 
   checkOut: async (visitorId) => {
-    await delay(500)
-    const visitor = mockVisitors.find((v) => v.id === visitorId)
-    if (visitor) {
-      visitor.status = "checked_out"
-      visitor.checkOutTime = new Date().toISOString()
-    }
-    return visitor
+    return await apiClient.request(`/visitors/${visitorId}/checkout`, {
+      method: "PUT",
+    });
   },
 
   getById: async (visitorId) => {
-    await delay(300)
-    return mockVisitors.find((v) => v.id === visitorId)
+    return await apiClient.request(`/visitors/${visitorId}`);
   },
 
   update: async (visitorId, updateData) => {
-    await delay(500)
-    const visitorIndex = mockVisitors.findIndex((v) => v.id === visitorId)
-    if (visitorIndex !== -1) {
-      mockVisitors[visitorIndex] = { ...mockVisitors[visitorIndex], ...updateData }
-      return mockVisitors[visitorIndex]
-    }
-    throw new Error("Visitor not found")
+    return await apiClient.request(`/visitors/${visitorId}`, {
+      method: "PUT",
+      body: JSON.stringify(updateData),
+    });
   },
 
   delete: async (visitorId) => {
-    await delay(400)
-    const visitorIndex = mockVisitors.findIndex((v) => v.id === visitorId)
-    if (visitorIndex !== -1) {
-      const deletedVisitor = mockVisitors.splice(visitorIndex, 1)[0]
-      return deletedVisitor
-    }
-    throw new Error("Visitor not found")
+    return await apiClient.request(`/visitors/${visitorId}`, {
+      method: "DELETE",
+    });
   },
-}
+};
 
 export const usersAPI = {
   getAll: async (filters = {}) => {
-    await delay(500)
-    let filteredUsers = [...mockUsers]
+    const queryParams = new URLSearchParams();
+    if (filters.search) queryParams.append("search", filters.search);
+    if (filters.status) queryParams.append("status", filters.status);
+    if (filters.role) queryParams.append("role", filters.role);
 
-    if (filters.search) {
-      const search = filters.search.toLowerCase()
-      filteredUsers = filteredUsers.filter(
-        (u) =>
-          u.name.toLowerCase().includes(search) ||
-          u.mobile.includes(search) ||
-          u.company.toLowerCase().includes(search) ||
-          u.roles.some((role) => role.toLowerCase().includes(search)),
-      )
-    }
-
-    if (filters.status) {
-      filteredUsers = filteredUsers.filter((u) => u.status === filters.status)
-    }
-
-    if (filters.role) {
-      filteredUsers = filteredUsers.filter((u) => u.roles.includes(filters.role))
-    }
-
-    return {
-      data: filteredUsers,
-      total: filteredUsers.length,
-    }
+    const endpoint = `/users${
+      queryParams.toString() ? `?${queryParams.toString()}` : ""
+    }`;
+    return await apiClient.request(endpoint);
   },
 
   getById: async (userId) => {
-    await delay(300)
-    return mockUsers.find((u) => u.id === userId)
+    return await apiClient.request(`/users/${userId}`);
   },
 
   create: async (userData) => {
-    await delay(800)
-    const newUser = {
-      id: Math.max(...mockUsers.map((u) => u.id)) + 1,
-      ...userData,
-    }
-    mockUsers.push(newUser)
-    return newUser
+    return await apiClient.request("/users", {
+      method: "POST",
+      body: JSON.stringify(userData),
+    });
   },
 
   update: async (userId, updateData) => {
-    await delay(500)
-    const userIndex = mockUsers.findIndex((u) => u.id === userId)
-    if (userIndex !== -1) {
-      mockUsers[userIndex] = { ...mockUsers[userIndex], ...updateData }
-      return mockUsers[userIndex]
-    }
-    throw new Error("User not found")
+    return await apiClient.request(`/users/${userId}`, {
+      method: "PUT",
+      body: JSON.stringify(updateData),
+    });
   },
 
   delete: async (userId) => {
-    await delay(400)
-    const userIndex = mockUsers.findIndex((u) => u.id === userId)
-    if (userIndex !== -1) {
-      const deletedUser = mockUsers.splice(userIndex, 1)[0]
-      return deletedUser
-    }
-    throw new Error("User not found")
+    return await apiClient.request(`/users/${userId}`, {
+      method: "DELETE",
+    });
   },
 
   changePassword: async (userId, passwordData) => {
-    await delay(600)
-    // In a real app, this would handle password changes
-    console.log("Password change for user:", userId, passwordData)
-    return { success: true }
+    return await apiClient.request(`/users/${userId}/password`, {
+      method: "PUT",
+      body: JSON.stringify(passwordData),
+    });
   },
-}
+};
+
+export const rolesAPI = {
+  create: async (roleData) => {
+    return await apiClient.request("/user/roles/create-role", {
+      method: "POST",
+      body: JSON.stringify(roleData),
+    });
+  },
+  getAll: async () => {
+    return await apiClient.request("/user/roles/fetch-roles");
+  },
+};
+
+export const companiesAPI = {
+  create: async (companyData) => {
+    return await apiClient.request("/user/companies/create-company", {
+      method: "POST",
+      body: JSON.stringify(companyData),
+    });
+  },
+  getAll: async () => {
+    return await apiClient.request("/user/companies/fetch-companies");
+  },
+};
+
+export const countriesAPI = {
+  create: async (countryData) => {
+    return await apiClient.request("/user/countries/create-country", {
+      method: "POST",
+      body: JSON.stringify(countryData),
+    });
+  },
+  getAll: async () => {
+    return await apiClient.request("/user/countries/fetch-countries");
+  },
+};
+
+export const statesAPI = {
+  create: async (stateData) => {
+    return await apiClient.request("/user/states/create-state", {
+      method: "POST",
+      body: JSON.stringify(stateData),
+    });
+  },
+  getAll: async () => {
+    return await apiClient.request("/user/states/fetch-states");
+  },
+};
+
+export const citiesAPI = {
+  create: async (cityData) => {
+    return await apiClient.request("/user/cities/create-city", {
+      method: "POST",
+      body: JSON.stringify(cityData),
+    });
+  },
+  getAll: async () => {
+    return await apiClient.request("/user/cities/fetch-cities");
+  },
+};
+
+export const plantTypesAPI = {
+  create: async (plantTypeData) => {
+    return await apiClient.request("/user/plant-types/create-plant-type", {
+      method: "POST",
+      body: JSON.stringify(plantTypeData),
+    });
+  },
+  getAll: async () => {
+    return await apiClient.request("/user/plant-types/fetch-plant-types");
+  },
+};
+
+export const plantsAPI = {
+  create: async (plantData) => {
+    return await apiClient.request("/user/plants/create-plant", {
+      method: "POST",
+      body: JSON.stringify(plantData),
+    });
+  },
+  getAll: async () => {
+    return await apiClient.request("/user/plants/fetch-plants");
+  },
+};
+
+export const departmentsAPI = {
+  create: async (departmentData) => {
+    return await apiClient.request("/user/departments/create-department", {
+      method: "POST",
+      body: JSON.stringify(departmentData),
+    });
+  },
+  getAll: async () => {
+    return await apiClient.request("/user/departments/fetch-departments");
+  },
+};
+
+export const gatesAPI = {
+  create: async (gateData) => {
+    return await apiClient.request("/user/gates/create-gate", {
+      method: "POST",
+      body: JSON.stringify(gateData),
+    });
+  },
+  getAll: async () => {
+    return await apiClient.request("/user/gates/fetch-gates");
+  },
+};
+
+export { apiClient, getCookie };

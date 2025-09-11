@@ -1,130 +1,145 @@
-"use client"
+"use client";
 
-import { createContext, useContext, useState, useEffect } from "react"
-import Cookies from "js-cookie"
-import { authAPI } from "../services/api"
+import { createContext, useContext, useState, useEffect } from "react";
+import { authAPI } from "../services/api";
 
-const AuthContext = createContext()
+const AuthContext = createContext();
 
 export const useAuth = () => {
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider")
+    throw new Error("useAuth must be used within an AuthProvider");
   }
-  return context
-}
+  return context;
+};
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Cookie key for auth data
-  const AUTH_COOKIE_KEY = "vms_auth"
-
-  // Get auth data from cookie
-  const getAuthFromCookie = () => {
-    try {
-      const authData = Cookies.get(AUTH_COOKIE_KEY)
-      return authData ? JSON.parse(authData) : null
-    } catch (error) {
-      console.error("Error parsing auth cookie:", error)
-      return null
-    }
-  }
-
-  // Set auth data in cookie
-  const setAuthCookie = (authData, rememberMe = false) => {
-    const options = {
-      secure: window.location.protocol === "https:",
-      sameSite: "strict",
-    }
-
-    if (rememberMe) {
-      options.expires = 30 // 30 days
-    }
-    // If rememberMe is false, cookie will be session-only (no expires set)
-
-    Cookies.set(AUTH_COOKIE_KEY, JSON.stringify(authData), options)
-  }
-
-  // Remove auth cookie
-  const removeAuthCookie = () => {
-    Cookies.remove(AUTH_COOKIE_KEY)
-  }
-
-  // Check if token is expired
-  const isTokenExpired = (issuedAt) => {
-    const now = Date.now()
-    const tokenAge = now - issuedAt
-    const maxAge = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
-    return tokenAge > maxAge
-  }
-
-  // Initialize auth state from cookie
   useEffect(() => {
-    const authData = getAuthFromCookie()
+    const checkAuthStatus = async () => {
+      try {
+        const authData = await authAPI.checkAuth();
 
-    if (authData && authData.token && authData.user && authData.issuedAt) {
-      // Check if token is expired
-      if (isTokenExpired(authData.issuedAt)) {
-        removeAuthCookie()
-        setUser(null)
-        setIsAuthenticated(false)
-      } else {
-        setUser(authData.user)
-        setIsAuthenticated(true)
+        if (authData && authData.success && authData.data) {
+          const userData = authData.data;
+
+          // Create normalized user object with roles array for hasRole function
+          const normalizedUser = {
+            ...userData,
+            roles: [userData.role?.roleName || "user"],
+          };
+
+          setUser(normalizedUser);
+          setIsAuthenticated(true);
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      } catch (error) {
+        console.error("Auth check failed:", error);
+        setUser(null);
+        setIsAuthenticated(false);
+      } finally {
+        setIsLoading(false);
       }
-    }
+    };
 
-    setLoading(false)
-  }, [])
+    checkAuthStatus();
+  }, []);
 
   const login = async (credentials, rememberMe = false) => {
     try {
-      const response = await authAPI.login(credentials)
-      const { token, user } = response
+      const response = await authAPI.login(credentials);
 
-      const authData = {
-        token,
-        user,
-        issuedAt: Date.now(),
+      if (response.success && response.statusCode === 200) {
+        const userData = response.data;
+
+        // Create normalized user object with roles array for hasRole function
+        const normalizedUser = {
+          ...userData,
+          roles: [userData.role?.roleName || "user"],
+        };
+
+        setUser(normalizedUser);
+        setIsAuthenticated(true);
+
+        return { success: true, data: response.data };
+      } else {
+        throw new Error(response.message || "Login failed");
       }
-
-      setAuthCookie(authData, rememberMe)
-      setUser(user)
-      setIsAuthenticated(true)
-
-      return { success: true }
     } catch (error) {
       return {
         success: false,
         error: error.message || "Login failed",
-      }
+      };
     }
-  }
+  };
 
-  const logout = () => {
-    removeAuthCookie()
-    setUser(null)
-    setIsAuthenticated(false)
-  }
+  const logout = async () => {
+    try {
+      await authAPI.logout();
+    } catch (error) {
+      console.error("API logout failed:", error);
+    } finally {
+      setUser(null);
+      setIsAuthenticated(false);
+    }
+  };
+
+  const register = async (userData) => {
+    try {
+      const response = await authAPI.register(userData);
+      return { success: true, data: response };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || "Registration failed",
+      };
+    }
+  };
 
   const hasRole = (requiredRoles) => {
-    if (!user || !user.roles) return false
-    if (!Array.isArray(requiredRoles)) requiredRoles = [requiredRoles]
-    return requiredRoles.some((role) => user.roles.includes(role))
-  }
+    if (!user || !user.roles) return false;
+    if (!Array.isArray(requiredRoles)) requiredRoles = [requiredRoles];
+    return requiredRoles.some((role) => user.roles.includes(role));
+  };
+
+  const refreshUser = async () => {
+    try {
+      const authData = await authAPI.checkAuth();
+      if (authData && authData.success && authData.data) {
+        const userData = authData.data;
+        const normalizedUser = {
+          ...userData,
+          roles: [userData.role?.roleName || "user"],
+        };
+        setUser(normalizedUser);
+        setIsAuthenticated(true);
+        return normalizedUser;
+      } else {
+        setUser(null);
+        setIsAuthenticated(false);
+        return null;
+      }
+    } catch (error) {
+      console.error("User refresh failed:", error);
+      return null;
+    }
+  };
 
   const value = {
     user,
     isAuthenticated,
-    loading,
+    isLoading,
     login,
     logout,
+    register,
     hasRole,
-    getAuthFromCookie,
-  }
+    refreshUser, // Add refreshUser method
+  };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
