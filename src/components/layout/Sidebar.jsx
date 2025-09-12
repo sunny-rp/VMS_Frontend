@@ -198,7 +198,6 @@ const Sidebar = ({ isOpen, onClose }) => {
   // Auto-open section for current route + restore from localStorage safely
   useEffect(() => {
     const stored = localStorage.getItem("sidebar.expandedSection");
-
     const current = visibleSections.find((sec) =>
       (sec.items || []).some((it) => it.href === location.pathname)
     );
@@ -222,7 +221,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       localStorage.setItem("sidebar.expandedSection", expandedSection);
   }, [expandedSection]);
 
-  // Collapse when clicking outside
+  // Collapse when clicking outside (desktop only)
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
@@ -241,7 +240,6 @@ const Sidebar = ({ isOpen, onClose }) => {
   );
   const itemsToRender =
     filteredItems.length > 0 ? filteredItems : expanded?.items || [];
-  // ^ If roles are still loading / hasRole temporarily says false for all, we still show items.
 
   return (
     <>
@@ -326,15 +324,24 @@ const Sidebar = ({ isOpen, onClose }) => {
         )}
       </div>
 
-      {/* Mobile drawer */}
-      <div
-        className={`lg:hidden fixed inset-0 z-50 ${
-          isOpen ? "block" : "hidden"
-        }`}
-      >
-        <div className="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 px-6 pb-4">
+      {/* Mobile / Tablet drawer (<lg) */}
+      <div className={`lg:hidden ${isOpen ? "fixed inset-0 z-50" : "hidden"}`}>
+        {/* Backdrop (tap to close) */}
+        <div
+          className="absolute inset-0 bg-black/40"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+        {/* Drawer panel */}
+        <div
+          className="
+            fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw]
+            bg-white border-r border-gray-200
+            flex flex-col
+          "
+        >
           {/* Header */}
-          <div className="flex h-16 shrink-0 items-center justify-between">
+          <div className="flex-none h-16 px-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center">
                 <div className="space-y-1">
@@ -348,6 +355,7 @@ const Sidebar = ({ isOpen, onClose }) => {
             <button
               onClick={onClose}
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+              aria-label="Close menu"
             >
               <svg
                 className="w-5 h-5"
@@ -365,21 +373,18 @@ const Sidebar = ({ isOpen, onClose }) => {
             </button>
           </div>
 
-          {/* Navigation */}
-          <nav className="flex flex-1 flex-col mt-5">
-            <ul role="list" className="flex flex-1 flex-col gap-y-7">
+          {/* Scrollable navigation (fills remaining height) */}
+          <nav className="flex-1 overflow-y-auto px-6 pb-6">
+            <ul role="list" className="space-y-6">
               {visibleSections.map((section) => (
                 <li key={section.id}>
                   <div className="text-xs font-semibold leading-6 text-gray-400 uppercase tracking-wide">
                     {section.name}
                   </div>
-                  <ul role="list" className="-mx-2 mt-2 space-y-1">
+                  <ul role="list" className="mt-2 space-y-1">
                     {(section.items || [])
-                      .filter((item) => {
-                        // same fallback behaviour for mobile
-                        const ok = hasAnyRole(item.roles);
-                        return ok || true; // always show; filter only hides after roles are truly ready
-                      })
+                      // same permissive fallback while roles load
+                      .filter((item) => hasAnyRole(item.roles) || true)
                       .map((item) => {
                         const isActive = location.pathname === item.href;
                         return (
@@ -387,7 +392,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                             <NavLink
                               to={item.href}
                               onClick={onClose}
-                              className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors ${
+                              className={`block rounded-md p-2 text-sm font-semibold transition-colors ${
                                 isActive
                                   ? "bg-blue-50 text-blue-600"
                                   : "text-gray-700 hover:text-blue-600 hover:bg-gray-50"
