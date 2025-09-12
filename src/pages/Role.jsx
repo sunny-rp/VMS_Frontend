@@ -4,9 +4,16 @@ import { useState, useEffect } from "react"
 import { Search, Plus, Edit, Trash2, Eye } from "lucide-react"
 import { rolesAPI } from "../services/api"
 
+// Single helper at module scope (avoid duplicate declarations)
+const toDisplayDateTime = (iso) => {
+  if (!iso) return "-"
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? "-" : d.toLocaleString()
+}
+
 export default function Role() {
   const [showForm, setShowForm] = useState(false)
-  const [roles, setRoles] = useState([])              // always keep an array here
+  const [roles, setRoles] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [editingRole, setEditingRole] = useState(null)
   const [formData, setFormData] = useState({ roleName: "" })
@@ -17,44 +24,26 @@ export default function Role() {
     fetchRoles()
   }, [])
 
-  const normalizeRoles = (res) => {
-    // Accept common shapes: res, res.data, res.data.data, res.results, res.roles, etc.
-    const payload = res?.data ?? res
-    const list =
-      Array.isArray(payload) ? payload :
-      Array.isArray(payload?.data) ? payload.data :
-      Array.isArray(payload?.results) ? payload.results :
-      Array.isArray(payload?.roles) ? payload.roles :
-      []
-    return list
-  }
-
   const fetchRoles = async () => {
     try {
       setLoading(true)
       setError("")
       const response = await rolesAPI.getAll()
-      const list = normalizeRoles(response)
-      setRoles(Array.isArray(list) ? list : [])
-      if (!Array.isArray(list)) {
-        setError("Unexpected response format from roles API.")
-        console.warn("rolesAPI.getAll() unexpected shape:", response)
+      // API shape: { statusCode, data: { roles: [...] }, message, success }
+      const list = Array.isArray(response?.data?.roles) ? response.data.roles : []
+      setRoles(list)
+      if (!Array.isArray(response?.data?.roles)) {
+        console.warn("Unexpected roles response:", response)
+        setError("Unexpected roles response format.")
       }
     } catch (err) {
       console.error("Error fetching roles:", err)
-      setRoles([]) // ensure roles stays an array
-      setError("Failed to fetch roles")
+      setRoles([])
+      setError(err?.message || "Failed to fetch roles")
     } finally {
       setLoading(false)
     }
   }
-
-  const filteredRoles = (Array.isArray(roles) ? roles : []).filter((role) => {
-    const name = (role?.roleName ?? "").toLowerCase()
-    const code = (role?.roleCode ?? "").toLowerCase()
-    const term = searchTerm.toLowerCase()
-    return name.includes(term) || code.includes(term)
-  })
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -62,12 +51,11 @@ export default function Role() {
     try {
       setLoading(true)
       if (editingRole) {
-        // TODO: implement update when your API is ready
-        console.log("Update functionality not implemented yet")
+        // Placeholder until update endpoint is wired
+        console.log("Update not implemented yet")
         setError("Update functionality not available")
       } else {
-        const response = await rolesAPI.create({ roleName: formData.roleName })
-        // Don’t assume a specific shape; just refetch
+        await rolesAPI.create({ roleName: formData.roleName })
         await fetchRoles()
         resetForm()
       }
@@ -93,9 +81,15 @@ export default function Role() {
   }
 
   const handleDelete = (id) => {
-    console.log("Delete functionality not implemented yet")
-    setError("Delete functionality not available")
+    // Local remove for now (wire to delete API later)
+    setRoles((prev) => prev.filter((r) => r._id !== id))
   }
+
+  const filteredRoles = (Array.isArray(roles) ? roles : []).filter((role) => {
+    const name = (role?.roleName || "").toLowerCase()
+    const term = searchTerm.toLowerCase()
+    return name.includes(term)
+  })
 
   if (showForm) {
     return (
@@ -153,7 +147,7 @@ export default function Role() {
           </div>
         </form>
 
-        {/* 3D Cube */}
+        {/* Decorative cube */}
         <div className="fixed bottom-8 right-8">
           <div className="relative">
             <div className="w-32 h-32 bg-gradient-to-br from-cyan-400 to-blue-600 transform rotate-12 rounded-lg shadow-lg flex items-center justify-center">
@@ -203,19 +197,11 @@ export default function Role() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
-                placeholder="Search"
+                placeholder="Search by role name"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-            </div>
-            <div className="flex gap-2">
-              <button className="p-2 bg-green-600 text-white rounded hover:bg-green-700">
-                <Plus className="w-4 h-4" />
-              </button>
-              <button className="p-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">
-                <Edit className="w-4 h-4" />
-              </button>
             </div>
           </div>
         </div>
@@ -225,48 +211,57 @@ export default function Role() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role Code</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role Name</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created On</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modified By</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modified On</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredRoles.map((role) => (
-                <tr key={role?.id ?? role?._id ?? role?.roleCode ?? crypto.randomUUID()} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="flex gap-2">
-                      <button onClick={() => handleDelete(role?.id ?? role?._id)} className="p-1 text-red-600 hover:bg-red-100 rounded">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleEdit(role)} className="p-1 text-green-600 hover:bg-green-100 rounded">
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button className="p-1 text-blue-600 hover:bg-blue-100 rounded">
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role?.roleCode ?? "-"}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role?.roleName ?? "-"}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role?.createdBy ?? "-"}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role?.createdOn ?? "-"}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role?.modifiedBy ?? "-"}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role?.modifiedOn ?? "-"}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span
-                      className={`px-2 py-1 text-xs rounded-full ${
-                        (role?.status ?? "Inactive") === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {role?.status ?? "Inactive"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {filteredRoles.map((role) => {
+                const id = role?._id
+                const nameUpper = (role?.roleName || "").toUpperCase()
+                const created = toDisplayDateTime(role?.createdAt)
+                const updated = toDisplayDateTime(role?.updatedAt)
+                const isActive = !!role?.isRoleActive
+                return (
+                  <tr key={id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleDelete(id)}
+                          className="p-1 text-red-600 hover:bg-red-100 rounded"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleEdit(role)}
+                          className="p-1 text-green-600 hover:bg-green-100 rounded"
+                          title="Edit"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button className="p-1 text-blue-600 hover:bg-blue-100 rounded" title="View">
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{nameUpper || "-"}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{created}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{updated}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span
+                        className={`px-2 py-1 text-xs rounded-full ${
+                          isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                        }`}
+                      >
+                        {isActive ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -283,7 +278,7 @@ export default function Role() {
         </div>
       </div>
 
-      {/* 3D Cube */}
+      {/* Decorative cube */}
       <div className="fixed bottom-8 right-8">
         <div className="relative">
           <div className="w-32 h-32 bg-gradient-to-br from-cyan-400 to-blue-600 transform rotate-12 rounded-lg shadow-lg flex items-center justify-center">

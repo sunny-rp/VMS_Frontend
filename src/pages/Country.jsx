@@ -2,94 +2,102 @@
 
 import { useState, useEffect } from "react"
 import { Plus, Search, Edit, Trash2, Eye } from "lucide-react"
+import { countriesAPI } from "../services/api"
 
 const Country = () => {
   const [view, setView] = useState("list") // 'list' or 'form'
   const [countries, setCountries] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [editingCountry, setEditingCountry] = useState(null)
-  const [formData, setFormData] = useState({
-    countryName: "",
-    countryShortform: "",
-    nationality: "",
-    status: "Active",
-  })
+  const [formData, setFormData] = useState({ countryName: "" })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
-  // Mock data
   useEffect(() => {
-    setCountries([
-      {
-        id: 1,
-        countryCode: "CNT00001",
-        countryName: "INDIA",
-        countryShortform: "IND",
-        nationality: "Indian",
-        createdBy: "Super Admin",
-        createdOn: "2025-08-30 15:04:36",
-        modifiedBy: "Super Admin",
-        modifiedOn: "2025-08-30 15:04:36",
-        status: "Active",
-      },
-    ])
+    fetchCountries()
   }, [])
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    if (editingCountry) {
-      setCountries(
-        countries.map((country) =>
-          country.id === editingCountry.id
-            ? { ...country, ...formData, modifiedOn: new Date().toLocaleString() }
-            : country,
-        ),
-      )
-    } else {
-      const newCountry = {
-        id: Date.now(),
-        countryCode: `CNT${String(countries.length + 1).padStart(5, "0")}`,
-        ...formData,
-        createdBy: "Super Admin",
-        createdOn: new Date().toLocaleString(),
-        modifiedBy: "Super Admin",
-        modifiedOn: new Date().toLocaleString(),
+  const fetchCountries = async () => {
+    try {
+      setLoading(true)
+      setError("")
+      const response = await countriesAPI.getAll()
+      // API shape:
+      // { statusCode: 200, data: [ { _id, countryName, isCountryActive, createdAt, updatedAt } ], ... }
+      const list = Array.isArray(response?.data) ? response.data : []
+      setCountries(list)
+      if (!Array.isArray(response?.data)) {
+        console.warn("Unexpected countries response shape:", response)
+        setError("Unexpected countries response format.")
       }
-      setCountries([...countries, newCountry])
+    } catch (err) {
+      console.error("Error fetching countries:", err)
+      setCountries([]) // keep it an array so .filter/map are safe
+      setError(err?.message || "Failed to fetch countries")
+    } finally {
+      setLoading(false)
     }
-    resetForm()
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    try {
+      setLoading(true)
+      setError("")
+      if (editingCountry) {
+        // Local update demo (replace with your PUT endpoint when ready)
+        setCountries((prev) =>
+          prev.map((c) =>
+            c._id === editingCountry._id
+              ? { ...c, countryName: formData.countryName, updatedAt: new Date().toISOString() }
+              : c
+          )
+        )
+      } else {
+        await countriesAPI.create({ countryName: formData.countryName })
+        await fetchCountries()
+      }
+      resetForm()
+    } catch (err) {
+      console.error("Error saving country:", err)
+      setError(err?.message || "Failed to save country")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const resetForm = () => {
-    setFormData({
-      countryName: "",
-      countryShortform: "",
-      nationality: "",
-      status: "Active",
-    })
+    setFormData({ countryName: "" })
     setEditingCountry(null)
     setView("list")
+    setError("")
   }
 
   const handleEdit = (country) => {
     setEditingCountry(country)
-    setFormData({
-      countryName: country.countryName,
-      countryShortform: country.countryShortform,
-      nationality: country.nationality,
-      status: country.status,
-    })
+    setFormData({ countryName: country?.countryName ?? "" })
     setView("form")
   }
 
   const handleDelete = (id) => {
-    setCountries(countries.filter((country) => country.id !== id))
+    // Placeholder (wire to API when available)
+    setCountries((prev) => prev.filter((c) => c._id !== id))
   }
 
-  const filteredCountries = countries.filter(
-    (country) =>
-      country.countryName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      country.countryShortform.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      country.nationality.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  const formatDateTime = (iso) => {
+    if (!iso) return "-"
+    try {
+      return new Date(iso).toLocaleString()
+    } catch {
+      return "-"
+    }
+  }
+
+  const filteredCountries = (Array.isArray(countries) ? countries : []).filter((country) => {
+    const name = (country?.countryName || "").toLowerCase()
+    const term = searchTerm.toLowerCase()
+    return name.includes(term)
+  })
 
   if (view === "form") {
     return (
@@ -109,6 +117,8 @@ const Country = () => {
           </div>
         </div>
 
+        {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">{error}</div>}
+
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div>
@@ -121,65 +131,31 @@ const Country = () => {
                 onChange={(e) => setFormData({ ...formData, countryName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                disabled={loading}
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Country Shortform<span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.countryShortform}
-                onChange={(e) => setFormData({ ...formData, countryShortform: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nationality<span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.nationality}
-                onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Status<span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
             </div>
           </div>
 
           <div className="flex space-x-4">
-            <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-              {editingCountry ? "Update" : "Save"}
+            <button
+              type="submit"
+              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? "Saving..." : editingCountry ? "Update" : "Save"}
             </button>
             <button
               type="button"
               onClick={resetForm}
               className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              disabled={loading}
             >
               Cancel
             </button>
           </div>
         </form>
 
-        {/* 3D Cube */}
+        {/* Decorative cube */}
         <div className="fixed bottom-8 right-8">
           <div className="relative w-32 h-32">
             <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-600 transform rotate-12 rounded-lg shadow-lg flex items-center justify-center">
@@ -208,14 +184,10 @@ const Country = () => {
           <button onClick={() => setView("form")} className="p-2 bg-green-600 text-white rounded hover:bg-green-700">
             <Plus className="w-4 h-4" />
           </button>
-          <button className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-            <Plus className="w-4 h-4" />
-          </button>
-          <button className="p-2 bg-orange-600 text-white rounded hover:bg-orange-700">
-            <Plus className="w-4 h-4" />
-          </button>
         </div>
       </div>
+
+      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">{error}</div>}
 
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 border-b">
@@ -223,7 +195,7 @@ const Country = () => {
             <Search className="w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search"
+              placeholder="Search by country name"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -239,25 +211,10 @@ const Country = () => {
                   Action
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Country Code
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Country Name
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Country Shortform
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Nationality
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created By
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Created On
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Modified By
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Modified On
@@ -268,53 +225,63 @@ const Country = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredCountries.length === 0 ? (
+              {loading ? (
                 <tr>
-                  <td colSpan="10" className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan="5" className="px-4 py-8 text-center text-gray-500">
+                    Loading...
+                  </td>
+                </tr>
+              ) : filteredCountries.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-4 py-8 text-center text-gray-500">
                     No Data Found
                   </td>
                 </tr>
               ) : (
-                filteredCountries.map((country) => (
-                  <tr key={country.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleDelete(country.id)}
-                          className="p-1 text-red-600 hover:bg-red-100 rounded"
+                filteredCountries.map((country) => {
+                  const id = country?._id
+                  const nameUpper = (country?.countryName || "").toUpperCase()
+                  const created = formatDateTime(country?.createdAt)
+                  const updated = formatDateTime(country?.updatedAt)
+                  const isActive = !!country?.isCountryActive
+                  return (
+                    <tr key={id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleDelete(id)}
+                            className="p-1 text-red-600 hover:bg-red-100 rounded"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleEdit(country)}
+                            className="p-1 text-green-600 hover:bg-green-100 rounded"
+                            title="Edit"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button className="p-1 text-blue-600 hover:bg-blue-100 rounded" title="View">
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{nameUpper || "-"}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{created}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{updated}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                          }`}
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleEdit(country)}
-                          className="p-1 text-green-600 hover:bg-green-100 rounded"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button className="p-1 text-blue-600 hover:bg-blue-100 rounded">
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{country.countryCode}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{country.countryName}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{country.countryShortform}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{country.nationality}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{country.createdBy}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{country.createdOn}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{country.modifiedBy}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{country.modifiedOn}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          country.status === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {country.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                          {isActive ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -334,7 +301,7 @@ const Country = () => {
         </div>
       </div>
 
-      {/* 3D Cube */}
+      {/* Decorative cube */}
       <div className="fixed bottom-8 right-8">
         <div className="relative w-32 h-32">
           <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-600 transform rotate-12 rounded-lg shadow-lg flex items-center justify-center">

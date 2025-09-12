@@ -2,104 +2,194 @@
 
 import { useState, useEffect } from "react"
 import { Plus, Search, Edit, Trash2, Eye } from "lucide-react"
+import { citiesAPI, countriesAPI, statesAPI } from "../services/api"
+
+// Helpers (module scope)
+const toDisplayDateTime = (iso) => {
+  if (!iso) return "-"
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? "-" : d.toLocaleString()
+}
+const up = (s) => (s ? String(s).toUpperCase() : "-")
+const sid = (v) => (v == null ? "" : String(v)) // stringify id safely
+const toBool = (v) =>
+  v === true || v === "true" || v === 1 || v === "1" || v === "Active" || v === "ACTIVE"
 
 const City = () => {
   const [view, setView] = useState("list") // 'list' or 'form'
   const [cities, setCities] = useState([])
+  const [countries, setCountries] = useState([])
+  const [states, setStates] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [editingCity, setEditingCity] = useState(null)
   const [formData, setFormData] = useState({
-    countryName: "",
-    stateName: "",
+    countryId: "",
+    stateId: "",
     cityName: "",
-    status: "Active",
   })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
-  // Mock data
   useEffect(() => {
-    setCities([
-      {
-        id: 1,
-        countryName: "INDIA",
-        stateName: "Haryana",
-        cityCode: "CTY00002",
-        cityName: "Gurugram",
-        createdBy: "Adhish Pandit",
-        createdOn: "2025-09-01 13:43:12",
-        modifiedBy: "Adhish Pandit",
-        modifiedOn: "2025-09-01 13:43:12",
-        status: "Active",
-      },
-      {
-        id: 2,
-        countryName: "INDIA",
-        stateName: "Tamil Nadu",
-        cityCode: "CTY00001",
-        cityName: "Chennai",
-        createdBy: "Super Admin",
-        createdOn: "2025-08-30 15:04:36",
-        modifiedBy: "Super Admin",
-        modifiedOn: "2025-08-30 15:04:36",
-        status: "Active",
-      },
-    ])
+    fetchCities()
+    fetchCountries()
+    fetchStates()
   }, [])
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    if (editingCity) {
-      setCities(
-        cities.map((city) =>
-          city.id === editingCity.id ? { ...city, ...formData, modifiedOn: new Date().toLocaleString() } : city,
-        ),
-      )
-    } else {
-      const newCity = {
-        id: Date.now(),
-        cityCode: `CTY${String(cities.length + 1).padStart(5, "0")}`,
-        ...formData,
-        createdBy: "Super Admin",
-        createdOn: new Date().toLocaleString(),
-        modifiedBy: "Super Admin",
-        modifiedOn: new Date().toLocaleString(),
+  // --- Normalizers ---
+  const normalizeCities = (res) =>
+    Array.isArray(res?.data?.cities)
+      ? res.data.cities
+      : Array.isArray(res?.data)
+      ? res.data
+      : Array.isArray(res)
+      ? res
+      : []
+
+  const normalizeCountries = (res) =>
+    Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []
+
+  const normalizeStates = (res) =>
+    Array.isArray(res?.data?.states)
+      ? res.data.states
+      : Array.isArray(res?.data)
+      ? res.data
+      : Array.isArray(res)
+      ? res
+      : []
+
+  // --- Fetchers ---
+  const fetchCities = async () => {
+    try {
+      setLoading(true)
+      setError("")
+      const res = await citiesAPI.getAll()
+      const list = normalizeCities(res)
+      setCities(list)
+      if (!Array.isArray(list)) {
+        console.warn("Unexpected cities response:", res)
+        setError("Unexpected cities response format.")
       }
-      setCities([...cities, newCity])
+    } catch (e) {
+      console.error("Error fetching cities:", e)
+      setCities([])
+      setError(e?.message || "Failed to fetch cities")
+    } finally {
+      setLoading(false)
     }
-    resetForm()
+  }
+
+  const fetchCountries = async () => {
+    try {
+      const res = await countriesAPI.getAll()
+      setCountries(normalizeCountries(res))
+    } catch (e) {
+      console.error("Error fetching countries:", e)
+    }
+  }
+
+  const fetchStates = async () => {
+    try {
+      const res = await statesAPI.getAll()
+      setStates(normalizeStates(res))
+    } catch (e) {
+      console.error("Error fetching states:", e)
+    }
+  }
+
+  // --- Lookup helpers ---
+  const getCountryNameById = (id) => {
+    const idStr = sid(id)
+    const c = countries.find((x) => sid(x?._id ?? x?.id) === idStr)
+    return c?.countryName || "-"
+  }
+  const getStateNameById = (id) => {
+    const idStr = sid(id)
+    const s = states.find((x) => sid(x?._id ?? x?.id) === idStr)
+    return s?.stateName || "-"
+  }
+  const getDisplayCountryName = (countryField) => {
+    if (!countryField) return "-"
+    if (typeof countryField === "object") return countryField.countryName || "-"
+    return getCountryNameById(countryField)
+  }
+  const getDisplayStateName = (stateField) => {
+    if (!stateField) return "-"
+    if (typeof stateField === "object") return stateField.stateName || "-"
+    return getStateNameById(stateField)
+  }
+
+  // --- Form ---
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError("")
+    try {
+      setLoading(true)
+      const payload = {
+        cityName: formData.cityName,
+        country: formData.countryId, // send ID
+        state: formData.stateId,     // send ID
+      }
+      if (editingCity) {
+        // TODO: call update endpoint when ready
+        console.log("Update city:", payload)
+      } else {
+        await citiesAPI.create(payload)
+        await fetchCities()
+      }
+      resetForm()
+    } catch (e) {
+      console.error("Error saving city:", e)
+      setError(e?.message || "Failed to save city")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const resetForm = () => {
-    setFormData({
-      countryName: "",
-      stateName: "",
-      cityName: "",
-      status: "Active",
-    })
+    setFormData({ countryId: "", stateId: "", cityName: "" })
     setEditingCity(null)
     setView("list")
+    setError("")
   }
 
   const handleEdit = (city) => {
     setEditingCity(city)
+    const countryId =
+      typeof city?.country === "string" ? city.country : sid(city?.country?._id)
+    const stateId =
+      typeof city?.state === "string" ? city.state : sid(city?.state?._id)
     setFormData({
-      countryName: city.countryName,
-      stateName: city.stateName,
-      cityName: city.cityName,
-      status: city.status,
+      countryId,
+      stateId,
+      cityName: city?.cityName || "",
     })
     setView("form")
   }
 
   const handleDelete = (id) => {
-    setCities(cities.filter((city) => city.id !== id))
+    const idStr = sid(id)
+    setCities((prev) => prev.filter((c) => sid(c?._id ?? c?.id) !== idStr))
   }
 
-  const filteredCities = cities.filter(
-    (city) =>
-      city.cityName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      city.stateName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      city.countryName.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  // States limited to selected country in dropdown
+  const statesForSelectedCountry = states.filter((s) => {
+    const stateCountryId =
+      typeof s?.country === "string"
+        ? s.country
+        : s?.country?._id ?? s?.countryId ?? ""
+    return !formData.countryId || sid(stateCountryId) === sid(formData.countryId)
+  })
+
+  // --- Filtering (search) ---
+  const list = Array.isArray(cities) ? cities : []
+  const filteredCities = list.filter((city) => {
+    const cityName = (city?.cityName || "").toLowerCase()
+    const stateName = getDisplayStateName(city?.state).toLowerCase()
+    const countryName = getDisplayCountryName(city?.country).toLowerCase()
+    const term = searchTerm.toLowerCase()
+    return cityName.includes(term) || stateName.includes(term) || countryName.includes(term)
+  })
 
   if (view === "form") {
     return (
@@ -119,39 +209,55 @@ const City = () => {
           </div>
         </div>
 
+        {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">{error}</div>}
+
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Country Name<span className="text-red-500">*</span>
+                Country<span className="text-red-500">*</span>
               </label>
               <select
-                value={formData.countryName}
-                onChange={(e) => setFormData({ ...formData, countryName: e.target.value })}
+                value={formData.countryId}
+                onChange={(e) =>
+                  setFormData({ ...formData, countryId: e.target.value, stateId: "" })
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                disabled={loading}
               >
-                <option value="">Country Name</option>
-                <option value="INDIA">INDIA</option>
-                <option value="USA">USA</option>
-                <option value="UK">UK</option>
+                <option value="">Select Country</option>
+                {countries.map((c) => {
+                  const id = sid(c?._id ?? c?.id)
+                  return (
+                    <option key={id} value={id}>
+                      {up(c?.countryName)}
+                    </option>
+                  )
+                })}
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                State Name<span className="text-red-500">*</span>
+                State<span className="text-red-500">*</span>
               </label>
               <select
-                value={formData.stateName}
-                onChange={(e) => setFormData({ ...formData, stateName: e.target.value })}
+                value={formData.stateId}
+                onChange={(e) => setFormData({ ...formData, stateId: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                disabled={loading || !formData.countryId}
               >
-                <option value="">State Name</option>
-                <option value="Haryana">Haryana</option>
-                <option value="Tamil Nadu">Tamil Nadu</option>
-                <option value="Maharashtra">Maharashtra</option>
+                <option value="">Select State</option>
+                {statesForSelectedCountry.map((s) => {
+                  const id = sid(s?._id ?? s?.id)
+                  return (
+                    <option key={id} value={id}>
+                      {up(s?.stateName)}
+                    </option>
+                  )
+                })}
               </select>
             </div>
 
@@ -165,39 +271,31 @@ const City = () => {
                 onChange={(e) => setFormData({ ...formData, cityName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                disabled={loading}
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Status<span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
             </div>
           </div>
 
           <div className="flex space-x-4">
-            <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-              {editingCity ? "Update" : "Save"}
+            <button
+              type="submit"
+              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? "Saving..." : editingCity ? "Update" : "Save"}
             </button>
             <button
               type="button"
               onClick={resetForm}
               className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              disabled={loading}
             >
               Cancel
             </button>
           </div>
         </form>
 
-        {/* 3D Cube */}
+        {/* Decorative cube */}
         <div className="fixed bottom-8 right-8">
           <div className="relative w-32 h-32">
             <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-600 transform rotate-12 rounded-lg shadow-lg flex items-center justify-center">
@@ -226,14 +324,10 @@ const City = () => {
           <button onClick={() => setView("form")} className="p-2 bg-green-600 text-white rounded hover:bg-green-700">
             <Plus className="w-4 h-4" />
           </button>
-          <button className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-            <Plus className="w-4 h-4" />
-          </button>
-          <button className="p-2 bg-orange-600 text-white rounded hover:bg-orange-700">
-            <Plus className="w-4 h-4" />
-          </button>
         </div>
       </div>
+
+      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">{error}</div>}
 
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 border-b">
@@ -241,7 +335,7 @@ const City = () => {
             <Search className="w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search"
+              placeholder="Search by city, state, or country"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -253,86 +347,74 @@ const City = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Action
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Country Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  State Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  City Code
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  City Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created By
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created On
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Modified By
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Modified On
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">City Name</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">State</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Country</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created On</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modified On</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredCities.length === 0 ? (
+              {loading ? (
                 <tr>
-                  <td colSpan="10" className="px-4 py-8 text-center text-gray-500">
-                    No Data Found
-                  </td>
+                  <td colSpan="7" className="px-4 py-8 text-center text-gray-500">Loading...</td>
+                </tr>
+              ) : filteredCities.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="px-4 py-8 text-center text-gray-500">No Data Found</td>
                 </tr>
               ) : (
-                filteredCities.map((city) => (
-                  <tr key={city.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleDelete(city.id)}
-                          className="p-1 text-red-600 hover:bg-red-100 rounded"
+                filteredCities.map((city) => {
+                  const id = sid(city?._id ?? city?.id)
+                  const cityName = up(city?.cityName)
+                  const stateName = up(getDisplayStateName(city?.state))
+                  const countryName = up(getDisplayCountryName(city?.country))
+                  const created = toDisplayDateTime(city?.createdAt)
+                  const updated = toDisplayDateTime(city?.updatedAt)
+                  // IMPORTANT: your API uses `iscityActive`
+                  const isActive = toBool(city?.iscityActive ?? city?.isCityActive ?? city?.isActive ?? city?.status)
+                  return (
+                    <tr key={id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleDelete(id)}
+                            className="p-1 text-red-600 hover:bg-red-100 rounded"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleEdit(city)}
+                            className="p-1 text-green-600 hover:bg-green-100 rounded"
+                            title="Edit"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button className="p-1 text-blue-600 hover:bg-blue-100 rounded" title="View">
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{cityName}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{stateName}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{countryName}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{created}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{updated}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                          }`}
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleEdit(city)}
-                          className="p-1 text-green-600 hover:bg-green-100 rounded"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button className="p-1 text-blue-600 hover:bg-blue-100 rounded">
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{city.countryName}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{city.stateName}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{city.cityCode}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{city.cityName}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{city.createdBy}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{city.createdOn}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{city.modifiedBy}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{city.modifiedOn}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          city.status === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {city.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                          {isActive ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -352,7 +434,7 @@ const City = () => {
         </div>
       </div>
 
-      {/* 3D Cube */}
+      {/* Decorative cube */}
       <div className="fixed bottom-8 right-8">
         <div className="relative w-32 h-32">
           <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-600 transform rotate-12 rounded-lg shadow-lg flex items-center justify-center">
