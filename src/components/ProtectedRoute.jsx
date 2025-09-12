@@ -1,11 +1,13 @@
 "use client";
 
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
 const ProtectedRoute = ({ children, roles = [] }) => {
   const { isAuthenticated, hasRole, isLoading } = useAuth();
+  const location = useLocation();
 
+  // Wait while cookie-based auth rehydrates
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -18,7 +20,7 @@ const ProtectedRoute = ({ children, roles = [] }) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
   if (roles.length > 0 && !hasRole(roles)) {

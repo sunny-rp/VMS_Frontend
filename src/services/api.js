@@ -2,7 +2,7 @@
 // API Configuration
 const API_BASE_URL =
   import.meta.env.VITE_PUBLIC_API_BASE_URL ||
-  "http://192.168.80.85:5000/api/v1";
+  "http://localhost:5000/api/v1";
 
 // Utility: safe JSON parsing for responses that may not have a body
 const parseJsonSafe = async (response) => {
@@ -14,7 +14,7 @@ const parseJsonSafe = async (response) => {
 };
 
 // Utility function to read cookies directly
-const getCookie = (name) => {
+export const getCookie = (name) => {
   const value = `; ${document.cookie}`;
   const parts = value.split(`; ${name}=`);
   if (parts.length === 2) return parts.pop().split(";").shift();
@@ -22,7 +22,7 @@ const getCookie = (name) => {
 };
 
 // HTTP client utility
-const apiClient = {
+export const apiClient = {
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
     const config = {
@@ -48,19 +48,21 @@ const apiClient = {
         endpoint === "/user/refresh-token" ||
         endpoint === "/user/logout";
 
+      // Centralized 401 handling WITHOUT hard redirect
       if (response.status === 401 && !isAuthEndpoint) {
         const refreshed = await this.refreshToken();
         if (refreshed) {
-          // Retry the original request with new token
+          // Retry original request with new token (if backend returned it)
           config.headers.Authorization = `Bearer ${refreshed}`;
           const retryResponse = await fetch(url, config);
           if (retryResponse.ok) {
             return await parseJsonSafe(retryResponse);
           }
         }
-        // If refresh failed, redirect to login
-        window.location.href = "/login";
-        return;
+        // Throw a typed error; let UI/router decide
+        const err = new Error("UNAUTHORIZED");
+        err.status = 401;
+        throw err;
       }
 
       if (!response.ok) {
@@ -69,9 +71,12 @@ const apiClient = {
           return { ok: false, status: 404 };
         }
         const errorData = await parseJsonSafe(response);
-        throw new Error(
+        const err = new Error(
           errorData.message || `HTTP error! status: ${response.status}`
         );
+        err.status = response.status;
+        err.body = errorData;
+        throw err;
       }
 
       return await parseJsonSafe(response);
@@ -100,6 +105,7 @@ const apiClient = {
       if (response.ok) {
         const data = await parseJsonSafe(response);
         // Some APIs return { token }, others { accessToken }
+        // Also, if server sets httpOnly cookie, that's already handled via credentials: 'include'
         return data.token || data.accessToken || null;
       }
       return null;
@@ -114,7 +120,7 @@ const apiClient = {
     if (!token) return null;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/user/me`, {
+      const response = await fetch(`${API_BASE_URL}/user/roles/fetch-roles`, {
         method: "GET",
         credentials: "include",
         headers: {
@@ -126,7 +132,7 @@ const apiClient = {
       if (response.ok) {
         const data = await parseJsonSafe(response);
         return {
-          user: data.user || data.data,
+          user: data.user || data.data || data,
           token,
         };
       }
@@ -149,12 +155,14 @@ export const authAPI = {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(
+      const err = new Error(
         errorData.message || `HTTP error! status: ${response.status}`
       );
+      err.status = response.status;
+      throw err;
     }
 
-    return await response.json();
+    return await response.json(); // expect { success, statusCode, data }
   },
 
   register: async (userData) => {
@@ -167,24 +175,24 @@ export const authAPI = {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(
+      const err = new Error(
         errorData.message || `HTTP error! status: ${response.status}`
       );
+      err.status = response.status;
+      throw err;
     }
 
     return await response.json();
   },
 
-  // ✅ Fixed: route through apiClient so Authorization header is attached from cookie
   logout: async () => {
     try {
       await apiClient.request("/user/logout", {
         method: "POST",
-        // If your API requires refreshToken too, uncomment:
+        // If your API requires refreshToken too, you can send it:
         // body: JSON.stringify({ refreshToken: getCookie("refreshToken") }),
       });
     } catch (error) {
-      // Don't block local logout; just log
       console.warn(
         "Logout API call failed (proceeding to local logout):",
         error
@@ -192,30 +200,29 @@ export const authAPI = {
     }
   },
 
+  // ✅ Always return normalized shape
   checkAuth: async () => {
-    const token = getCookie("accessToken");
-    if (!token) return null;
-
+    // There is no /user/me endpoint in this backend.
+    // We'll verify authentication by calling a lightweight protected endpoint.
     try {
-      const response = await fetch(`${API_BASE_URL}/user/me`, {
+      const res = await fetch(`${API_BASE_URL}/user/roles/fetch-roles`, {
         method: "GET",
         credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
       });
-
-      if (response.ok) {
-        return await response.json();
+      if (res.ok) {
+        const data = await parseJsonSafe(res);
+        return { success: true, data };
       }
-      return null;
+      return { success: false, data: null };
     } catch (error) {
       console.error("Auth check failed:", error);
-      return null;
+      return { success: false, data: null };
     }
   },
 };
+
+// ---- Example business APIs (unchanged except they use apiClient.request) ----
 
 export const visitorsAPI = {
   getAll: async (filters = {}) => {
@@ -413,5 +420,3 @@ export const gatesAPI = {
     return await apiClient.request("/user/gates/fetch-gates");
   },
 };
-
-export { apiClient, getCookie };

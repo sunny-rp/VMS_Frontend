@@ -1,81 +1,77 @@
-"use client"
+"use client";
 
-import { NavLink, useLocation } from "react-router-dom"
-import { useAuth } from "../../contexts/AuthContext"
-import { useState, useEffect, useRef } from "react"
-import { BarChart3, Settings, Users, UsersRound, Link, CreditCard, FileText } from "lucide-react"
+import { NavLink, useLocation } from "react-router-dom";
+import { useAuth } from "../../contexts/AuthContext";
+import { useState, useEffect, useRef } from "react";
+import {
+  BarChart3,
+  Settings,
+  Users,
+  UsersRound,
+  Link as LinkIcon,
+  CreditCard,
+  FileText,
+} from "lucide-react";
 
 const Sidebar = ({ isOpen, onClose }) => {
-  const { user, hasRole } = useAuth()
-  const location = useLocation()
-  const [expandedSection, setExpandedSection] = useState(null)
-  const sidebarRef = useRef(null)
+  const { user, hasRole } = useAuth();
+  const location = useLocation();
+  const [expandedSection, setExpandedSection] = useState(null);
+  const sidebarRef = useRef(null);
 
+  // ---------- helpers ----------
+  const hasAnyRole = (roles) => {
+    if (!roles || roles.length === 0) return true;
+    if (typeof roles === "string") return hasRole ? hasRole(roles) : true;
+    return hasRole ? roles.some((r) => hasRole(r)) : true;
+  };
+
+  // ---------- data ----------
   const masterItems = [
-    {
-      name: "Company",
-      href: "/company", // Updated Company link to point to the new Company page
-      roles: ["admin", "super_admin"],
-    },
-    {
-      name: "Plant",
-      href: "/plant", // Updated Plant link to point to the new Plant page
-      roles: ["admin", "super_admin"],
-    },
-    {
-      name: "Area",
-      href: "/area", // Updated Area link to point to the new Area page
-      roles: ["admin", "super_admin"],
-    },
+    { name: "Company", href: "/company", roles: ["admin", "super_admin"] },
+    { name: "Plant", href: "/plant", roles: ["admin", "super_admin"] },
+    { name: "Area", href: "/area", roles: ["admin", "super_admin"] },
     {
       name: "Department",
-      href: "/department", // Updated Department link to point to the new Department page
+      href: "/department",
       roles: ["admin", "super_admin"],
     },
-    {
-      name: "Route",
-      href: "/route", // Updated Route link to point to the new Route page
-      roles: ["admin", "super_admin"],
-    },
-    {
-      name: "Gate",
-      href: "/gate", // Updated Gate link to point to the new Gate page
-      roles: ["admin", "super_admin"],
-    },
-    {
-      name: "Shift",
-      href: "/shift", // Updated Shift link to point to the new Shift page
-      roles: ["admin", "super_admin"],
-    },
+    { name: "Route", href: "/route", roles: ["admin", "super_admin"] },
+    { name: "Gate", href: "/gate", roles: ["admin", "super_admin"] },
+    { name: "Shift", href: "/shift", roles: ["admin", "super_admin"] },
     {
       name: "Terms & Conditions",
       href: "/master/terms",
       roles: ["admin", "super_admin"],
     },
-  ]
+  ];
 
   const sidebarSections = [
     {
       id: "analytics",
       name: "ANALYTICS",
-      icon: BarChart3, // Bar chart icon (first icon in image)
+      icon: BarChart3,
       items: [
-        { name: "Dashboard", href: "/dashboard", roles: ["admin", "super_admin", "reception"] },
+        {
+          name: "Dashboard",
+          href: "/dashboard",
+          roles: ["admin", "super_admin", "reception"],
+        },
         { name: "Reports", href: "/reports", roles: ["admin", "super_admin"] },
       ],
       roles: ["admin", "super_admin", "reception"],
     },
     {
       id: "settings",
-      name: "MASTER", // Changed from "SETTINGS" to "MASTER" to match the image
-      icon: Settings, // Tools/settings icon (second icon in image)
+      name: "MASTER",
+      icon: Settings,
       items: masterItems,
       roles: ["admin", "super_admin"],
     },
     {
       id: "visitors",
       name: "ADMIN",
-      icon: Users, // People icon (third icon in image)
+      icon: Users,
       items: [
         { name: "Country", href: "/country", roles: ["admin", "super_admin"] },
         { name: "State", href: "/state", roles: ["admin", "super_admin"] },
@@ -86,43 +82,63 @@ const Sidebar = ({ isOpen, onClose }) => {
     {
       id: "users",
       name: "USERS",
-      icon: UsersRound, // Group/team icon (fourth icon in image)
+      icon: UsersRound,
       items: [
-        { name: "User", href: "/user-management", roles: ["admin", "super_admin"] },
+        {
+          name: "User",
+          href: "/user-management",
+          roles: ["admin", "super_admin"],
+        },
         { name: "Role", href: "/role", roles: ["admin", "super_admin"] },
-        { name: "Role Wise Screen Mapping", href: "/role-wise-screen-mapping", roles: ["admin", "super_admin"] },
-        { name: "User Wise Screen Mapping", href: "/user-wise-screen-mapping", roles: ["admin", "super_admin"] },
+        {
+          name: "Role Wise Screen Mapping",
+          href: "/role-wise-screen-mapping",
+          roles: ["admin", "super_admin"],
+        },
+        {
+          name: "User Wise Screen Mapping",
+          href: "/user-wise-screen-mapping",
+          roles: ["admin", "super_admin"],
+        },
       ],
       roles: ["admin", "super_admin"],
     },
     {
       id: "connections",
-      name: "APPROVAL", // Changed from "CONNECTIONS" to "APPROVAL" to match the image
-      icon: Link, // Connection/link icon (fifth icon in image)
+      name: "APPROVAL",
+      icon: LinkIcon,
       items: [
-        { name: "Approval Configuration", href: "/approval-configuration", roles: ["admin", "super_admin"] }, // Updated to match APPROVAL modules
-        { name: "WorkFlow", href: "/workflow", roles: ["admin", "super_admin"] }, // Updated to match APPROVAL modules
+        {
+          name: "Approval Configuration",
+          href: "/approval-configuration",
+          roles: ["admin", "super_admin"],
+        },
+        {
+          name: "WorkFlow",
+          href: "/workflow",
+          roles: ["admin", "super_admin"],
+        },
       ],
       roles: ["admin", "super_admin"],
     },
     {
       id: "badges",
-      name: "VISITOR MANAGEMENT", // Changed from "BADGES" to "VISITOR MANAGEMENT" to match the image
-      icon: CreditCard, // ID card/badge icon (sixth icon in image)
+      name: "VISITOR MANAGEMENT",
+      icon: CreditCard,
       items: [
         {
           name: "Visitor Management",
-          href: "/visitors", // Updated to point to the main visitors page
+          href: "/visitors",
           roles: ["admin", "super_admin", "reception"],
         },
         {
           name: "Check In Check Out",
-          href: "/checkinout", // Updated to point to the new CheckInOut page
+          href: "/checkinout",
           roles: ["admin", "super_admin", "reception"],
         },
         {
           name: "Appointments",
-          href: "/appointment", // Updated to point to the new Appointment page
+          href: "/appointment",
           roles: ["admin", "super_admin", "reception"],
         },
       ],
@@ -130,59 +146,99 @@ const Sidebar = ({ isOpen, onClose }) => {
     },
     {
       id: "documents",
-      name: "REPORTS", // Changed from "DOCUMENTS" to "REPORTS" to match the image
-      icon: FileText, // Document/file icon (seventh icon in image)
+      name: "REPORTS",
+      icon: FileText,
       items: [
-        { name: "Check In Check Out Report", href: "/checkin-checkout-report", roles: ["admin", "super_admin"] },
-        { name: "Feedback Report", href: "/feedback-report", roles: ["admin", "super_admin"] },
-        { name: "Vehicle Invoice Report", href: "/vehicle-invoice-report", roles: ["admin", "super_admin"] },
+        {
+          name: "Check In Check Out Report",
+          href: "/checkin-checkout-report",
+          roles: ["admin", "super_admin"],
+        },
+        {
+          name: "Feedback Report",
+          href: "/feedback-report",
+          roles: ["admin", "super_admin"],
+        },
+        {
+          name: "Vehicle Invoice Report",
+          href: "/vehicle-invoice-report",
+          roles: ["admin", "super_admin"],
+        },
       ],
       roles: ["admin", "super_admin"],
     },
-  ]
+  ];
 
-  const filteredSections = sidebarSections.filter((section) => hasRole(section.roles))
+  // ---------- role-based filtering with safe fallback ----------
+  const rolesReady = !!user && typeof hasRole === "function";
+  const filteredSections = rolesReady
+    ? sidebarSections.filter((section) => hasAnyRole(section.roles))
+    : sidebarSections;
 
-  const handleSectionClick = (sectionId) => {
-    setExpandedSection(expandedSection === sectionId ? null : sectionId)
-  }
+  const visibleSections = filteredSections.length
+    ? filteredSections
+    : sidebarSections;
 
+  // ---------- UI handlers ----------
+  const handleSectionClick = (sectionId) =>
+    setExpandedSection((prev) => (prev === sectionId ? null : sectionId));
+
+  // Auto-open section that contains current route + restore from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem("sidebar.expandedSection");
+    const current = visibleSections.find((sec) =>
+      (sec.items || []).some((it) => it.href === location.pathname)
+    );
+    if (current && current.id !== expandedSection) {
+      setExpandedSection(current.id);
+      localStorage.setItem("sidebar.expandedSection", current.id);
+    } else if (!expandedSection && stored) {
+      setExpandedSection(stored);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, JSON.stringify(visibleSections)]);
+
+  // Persist expanded section
+  useEffect(() => {
+    if (expandedSection)
+      localStorage.setItem("sidebar.expandedSection", expandedSection);
+  }, [expandedSection]);
+
+  // Collapse when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
-        setExpandedSection(null)
+        setExpandedSection(null);
       }
-    }
-
-    if (expandedSection) {
-      document.addEventListener("mousedown", handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [expandedSection])
+    };
+    if (expandedSection)
+      document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [expandedSection]);
 
   return (
     <>
       {/* Desktop sidebar */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex" ref={sidebarRef}>
+      <div
+        className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex"
+        ref={sidebarRef}
+      >
         <div className="flex w-16 flex-col bg-gray-900">
           <div className="flex grow flex-col gap-y-5 overflow-y-auto px-2 py-4">
             {/* Logo */}
             <div className="flex h-12 shrink-0 items-center justify-center">
               <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
                 <div className="space-y-1">
-                  <div className="w-4 h-0.5 bg-gray-900 transform rotate-45"></div>
-                  <div className="w-4 h-0.5 bg-gray-900 transform -rotate-45 -mt-1"></div>
-                  <div className="w-4 h-0.5 bg-gray-900 transform rotate-45 -mt-0.5"></div>
+                  <div className="w-4 h-0.5 bg-gray-900 rotate-45"></div>
+                  <div className="w-4 h-0.5 bg-gray-900 -rotate-45 -mt-1"></div>
+                  <div className="w-4 h-0.5 bg-gray-900 rotate-45 -mt-0.5"></div>
                 </div>
               </div>
             </div>
 
             <nav className="flex flex-1 flex-col">
               <ul role="list" className="flex flex-1 flex-col gap-y-2">
-                {filteredSections.map((section) => (
+                {visibleSections.map((section) => (
                   <li key={section.id}>
                     <button
                       onClick={() => handleSectionClick(section.id)}
@@ -192,6 +248,9 @@ const Sidebar = ({ isOpen, onClose }) => {
                           : "text-gray-400 hover:text-white hover:bg-gray-800"
                       }`}
                       title={section.name}
+                      type="button"
+                      aria-expanded={expandedSection === section.id}
+                      aria-label={section.name}
                     >
                       <section.icon size={20} />
                     </button>
@@ -202,24 +261,25 @@ const Sidebar = ({ isOpen, onClose }) => {
           </div>
         </div>
 
+        {/* Submenu panel */}
         {expandedSection && (
           <div className="flex w-64 flex-col bg-white border-r border-gray-200">
             <div className="flex grow flex-col gap-y-5 overflow-y-auto px-6 py-4">
               {/* Section header */}
               <div className="flex h-12 shrink-0 items-center">
                 <h2 className="text-lg font-semibold text-gray-900">
-                  {filteredSections.find((s) => s.id === expandedSection)?.name}
+                  {visibleSections.find((s) => s.id === expandedSection)?.name}
                 </h2>
               </div>
 
               {/* Section items */}
               <nav className="flex flex-1 flex-col">
                 <ul role="list" className="-mx-2 space-y-1">
-                  {filteredSections
+                  {visibleSections
                     .find((s) => s.id === expandedSection)
-                    ?.items.filter((item) => hasRole(item.roles))
+                    ?.items.filter((item) => hasAnyRole(item.roles))
                     .map((item) => {
-                      const isActive = location.pathname === item.href
+                      const isActive = location.pathname === item.href;
                       return (
                         <li key={item.name}>
                           <NavLink
@@ -233,7 +293,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                             {item.name}
                           </NavLink>
                         </li>
-                      )
+                      );
                     })}
                 </ul>
               </nav>
@@ -242,23 +302,41 @@ const Sidebar = ({ isOpen, onClose }) => {
         )}
       </div>
 
-      <div className={`lg:hidden fixed inset-0 z-50 ${isOpen ? "block" : "hidden"}`}>
+      {/* Mobile drawer */}
+      <div
+        className={`lg:hidden fixed inset-0 z-50 ${
+          isOpen ? "block" : "hidden"
+        }`}
+      >
         <div className="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 px-6 pb-4">
-          {/* Header with close button */}
+          {/* Header */}
           <div className="flex h-16 shrink-0 items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center">
                 <div className="space-y-1">
-                  <div className="w-4 h-0.5 bg-white transform rotate-45"></div>
-                  <div className="w-4 h-0.5 bg-white transform -rotate-45 -mt-1"></div>
-                  <div className="w-4 h-0.5 bg-white transform rotate-45 -mt-0.5"></div>
+                  <div className="w-4 h-0.5 bg-white rotate-45"></div>
+                  <div className="w-4 h-0.5 bg-white -rotate-45 -mt-1"></div>
+                  <div className="w-4 h-0.5 bg-white rotate-45 -mt-0.5"></div>
                 </div>
               </div>
               <span className="text-lg font-bold text-gray-900">VMS</span>
             </div>
-            <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <button
+              onClick={onClose}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -266,16 +344,16 @@ const Sidebar = ({ isOpen, onClose }) => {
           {/* Navigation */}
           <nav className="flex flex-1 flex-col mt-5">
             <ul role="list" className="flex flex-1 flex-col gap-y-7">
-              {filteredSections.map((section) => (
+              {visibleSections.map((section) => (
                 <li key={section.id}>
                   <div className="text-xs font-semibold leading-6 text-gray-400 uppercase tracking-wide">
                     {section.name}
                   </div>
                   <ul role="list" className="-mx-2 mt-2 space-y-1">
                     {section.items
-                      .filter((item) => hasRole(item.roles))
+                      .filter((item) => hasAnyRole(item.roles))
                       .map((item) => {
-                        const isActive = location.pathname === item.href
+                        const isActive = location.pathname === item.href;
                         return (
                           <li key={item.name}>
                             <NavLink
@@ -291,7 +369,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                               {item.name}
                             </NavLink>
                           </li>
-                        )
+                        );
                       })}
                   </ul>
                 </li>
@@ -301,7 +379,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         </div>
       </div>
     </>
-  )
-}
+  );
+};
 
-export default Sidebar
+export default Sidebar;
