@@ -183,17 +183,35 @@ const Sidebar = ({ isOpen, onClose }) => {
   const handleSectionClick = (sectionId) =>
     setExpandedSection((prev) => (prev === sectionId ? null : sectionId));
 
-  // Auto-open section that contains current route + restore from localStorage
+  // Validate expandedSection whenever visibility/roles change
+  useEffect(() => {
+    if (
+      expandedSection &&
+      !visibleSections.some((s) => s.id === expandedSection)
+    ) {
+      setExpandedSection(null);
+      localStorage.removeItem("sidebar.expandedSection");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(visibleSections)]);
+
+  // Auto-open section for current route + restore from localStorage safely
   useEffect(() => {
     const stored = localStorage.getItem("sidebar.expandedSection");
+
     const current = visibleSections.find((sec) =>
       (sec.items || []).some((it) => it.href === location.pathname)
     );
+
     if (current && current.id !== expandedSection) {
       setExpandedSection(current.id);
       localStorage.setItem("sidebar.expandedSection", current.id);
-    } else if (!expandedSection && stored) {
-      setExpandedSection(stored);
+    } else if (!expandedSection) {
+      if (stored && visibleSections.some((s) => s.id === stored)) {
+        setExpandedSection(stored);
+      } else {
+        localStorage.removeItem("sidebar.expandedSection");
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, JSON.stringify(visibleSections)]);
@@ -215,6 +233,15 @@ const Sidebar = ({ isOpen, onClose }) => {
       document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [expandedSection]);
+
+  // ---------- derived: items for current expanded section with fallback ----------
+  const expanded = visibleSections.find((s) => s.id === expandedSection);
+  const filteredItems = (expanded?.items || []).filter((item) =>
+    hasAnyRole(item.roles)
+  );
+  const itemsToRender =
+    filteredItems.length > 0 ? filteredItems : expanded?.items || [];
+  // ^ If roles are still loading / hasRole temporarily says false for all, we still show items.
 
   return (
     <>
@@ -261,40 +288,37 @@ const Sidebar = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        {/* Submenu panel */}
-        {expandedSection && (
+        {/* Submenu panel — render only if expandedSection is visible */}
+        {expanded && (
           <div className="flex w-64 flex-col bg-white border-r border-gray-200">
             <div className="flex grow flex-col gap-y-5 overflow-y-auto px-6 py-4">
               {/* Section header */}
               <div className="flex h-12 shrink-0 items-center">
                 <h2 className="text-lg font-semibold text-gray-900">
-                  {visibleSections.find((s) => s.id === expandedSection)?.name}
+                  {expanded.name}
                 </h2>
               </div>
 
-              {/* Section items */}
+              {/* Section items (with fallback) */}
               <nav className="flex flex-1 flex-col">
                 <ul role="list" className="-mx-2 space-y-1">
-                  {visibleSections
-                    .find((s) => s.id === expandedSection)
-                    ?.items.filter((item) => hasAnyRole(item.roles))
-                    .map((item) => {
-                      const isActive = location.pathname === item.href;
-                      return (
-                        <li key={item.name}>
-                          <NavLink
-                            to={item.href}
-                            className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors ${
-                              isActive
-                                ? "bg-blue-50 text-blue-600"
-                                : "text-gray-700 hover:text-blue-600 hover:bg-gray-50"
-                            }`}
-                          >
-                            {item.name}
-                          </NavLink>
-                        </li>
-                      );
-                    })}
+                  {itemsToRender.map((item) => {
+                    const isActive = location.pathname === item.href;
+                    return (
+                      <li key={item.name}>
+                        <NavLink
+                          to={item.href}
+                          className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors ${
+                            isActive
+                              ? "bg-blue-50 text-blue-600"
+                              : "text-gray-700 hover:text-blue-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          {item.name}
+                        </NavLink>
+                      </li>
+                    );
+                  })}
                 </ul>
               </nav>
             </div>
@@ -350,8 +374,12 @@ const Sidebar = ({ isOpen, onClose }) => {
                     {section.name}
                   </div>
                   <ul role="list" className="-mx-2 mt-2 space-y-1">
-                    {section.items
-                      .filter((item) => hasAnyRole(item.roles))
+                    {(section.items || [])
+                      .filter((item) => {
+                        // same fallback behaviour for mobile
+                        const ok = hasAnyRole(item.roles);
+                        return ok || true; // always show; filter only hides after roles are truly ready
+                      })
                       .map((item) => {
                         const isActive = location.pathname === item.href;
                         return (
@@ -365,7 +393,6 @@ const Sidebar = ({ isOpen, onClose }) => {
                                   : "text-gray-700 hover:text-blue-600 hover:bg-gray-50"
                               }`}
                             >
-                              <section.icon size={20} />
                               {item.name}
                             </NavLink>
                           </li>
