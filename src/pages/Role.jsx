@@ -2,141 +2,99 @@
 
 import { useState, useEffect } from "react"
 import { Search, Plus, Edit, Trash2, Eye } from "lucide-react"
+import { rolesAPI } from "../services/api"
 
 export default function Role() {
   const [showForm, setShowForm] = useState(false)
-  const [roles, setRoles] = useState([])
+  const [roles, setRoles] = useState([])              // always keep an array here
   const [searchTerm, setSearchTerm] = useState("")
   const [editingRole, setEditingRole] = useState(null)
-  const [formData, setFormData] = useState({
-    roleName: "",
-    status: "Active",
-  })
+  const [formData, setFormData] = useState({ roleName: "" })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
-  // Mock data
   useEffect(() => {
-    setRoles([
-      {
-        id: 1,
-        roleCode: "RLE00007",
-        roleName: "OWNER",
-        createdBy: "Adhish Pandit",
-        createdOn: "2025-09-01 14:36:04",
-        modifiedBy: "Adhish Pandit",
-        modifiedOn: "2025-09-01 14:36:04",
-        status: "Active",
-      },
-      {
-        id: 2,
-        roleCode: "RLE00006",
-        roleName: "HOD",
-        createdBy: "Adhish Pandit",
-        createdOn: "2025-09-01 14:06:41",
-        modifiedBy: "Adhish Pandit",
-        modifiedOn: "2025-09-01 14:35:40",
-        status: "Active",
-      },
-      {
-        id: 3,
-        roleCode: "ROL0001",
-        roleName: "Super Admin",
-        createdBy: "Super Admin",
-        createdOn: "2025-08-30 15:04:36",
-        modifiedBy: "Super Admin",
-        modifiedOn: "2025-08-30 15:04:36",
-        status: "Active",
-      },
-      {
-        id: 4,
-        roleCode: "ROL00002",
-        roleName: "Admin",
-        createdBy: "Super Admin",
-        createdOn: "2025-08-30 15:04:36",
-        modifiedBy: "Super Admin",
-        modifiedOn: "2025-08-30 15:04:36",
-        status: "Active",
-      },
-      {
-        id: 5,
-        roleCode: "ROL00003",
-        roleName: "Manager",
-        createdBy: "Super Admin",
-        createdOn: "2025-08-30 15:04:36",
-        modifiedBy: "Super Admin",
-        modifiedOn: "2025-08-30 15:04:36",
-        status: "Active",
-      },
-      {
-        id: 6,
-        roleCode: "ROL00004",
-        roleName: "Supervisor",
-        createdBy: "Super Admin",
-        createdOn: "2025-08-30 15:04:36",
-        modifiedBy: "Super Admin",
-        modifiedOn: "2025-08-30 15:04:36",
-        status: "Active",
-      },
-      {
-        id: 7,
-        roleCode: "ROL00005",
-        roleName: "Security",
-        createdBy: "Super Admin",
-        createdOn: "2025-08-30 15:04:36",
-        modifiedBy: "Super Admin",
-        modifiedOn: "2025-08-30 15:04:36",
-        status: "Active",
-      },
-    ])
+    fetchRoles()
   }, [])
 
-  const filteredRoles = roles.filter(
-    (role) =>
-      role.roleName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      role.roleCode.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  const normalizeRoles = (res) => {
+    // Accept common shapes: res, res.data, res.data.data, res.results, res.roles, etc.
+    const payload = res?.data ?? res
+    const list =
+      Array.isArray(payload) ? payload :
+      Array.isArray(payload?.data) ? payload.data :
+      Array.isArray(payload?.results) ? payload.results :
+      Array.isArray(payload?.roles) ? payload.roles :
+      []
+    return list
+  }
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    if (editingRole) {
-      setRoles(
-        roles.map((role) =>
-          role.id === editingRole.id
-            ? { ...role, ...formData, modifiedBy: "Current User", modifiedOn: new Date().toLocaleString() }
-            : role,
-        ),
-      )
-    } else {
-      const newRole = {
-        id: Date.now(),
-        roleCode: `ROL${String(Date.now()).slice(-5)}`,
-        ...formData,
-        createdBy: "Current User",
-        createdOn: new Date().toLocaleString(),
-        modifiedBy: "Current User",
-        modifiedOn: new Date().toLocaleString(),
+  const fetchRoles = async () => {
+    try {
+      setLoading(true)
+      setError("")
+      const response = await rolesAPI.getAll()
+      const list = normalizeRoles(response)
+      setRoles(Array.isArray(list) ? list : [])
+      if (!Array.isArray(list)) {
+        setError("Unexpected response format from roles API.")
+        console.warn("rolesAPI.getAll() unexpected shape:", response)
       }
-      setRoles([...roles, newRole])
+    } catch (err) {
+      console.error("Error fetching roles:", err)
+      setRoles([]) // ensure roles stays an array
+      setError("Failed to fetch roles")
+    } finally {
+      setLoading(false)
     }
-    resetForm()
+  }
+
+  const filteredRoles = (Array.isArray(roles) ? roles : []).filter((role) => {
+    const name = (role?.roleName ?? "").toLowerCase()
+    const code = (role?.roleCode ?? "").toLowerCase()
+    const term = searchTerm.toLowerCase()
+    return name.includes(term) || code.includes(term)
+  })
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError("")
+    try {
+      setLoading(true)
+      if (editingRole) {
+        // TODO: implement update when your API is ready
+        console.log("Update functionality not implemented yet")
+        setError("Update functionality not available")
+      } else {
+        const response = await rolesAPI.create({ roleName: formData.roleName })
+        // Don’t assume a specific shape; just refetch
+        await fetchRoles()
+        resetForm()
+      }
+    } catch (err) {
+      console.error("Error saving role:", err)
+      setError(err?.message || "Failed to save role")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const resetForm = () => {
-    setFormData({ roleName: "", status: "Active" })
+    setFormData({ roleName: "" })
     setEditingRole(null)
     setShowForm(false)
+    setError("")
   }
 
   const handleEdit = (role) => {
-    setFormData({
-      roleName: role.roleName,
-      status: role.status,
-    })
+    setFormData({ roleName: role?.roleName ?? "" })
     setEditingRole(role)
     setShowForm(true)
   }
 
   const handleDelete = (id) => {
-    setRoles(roles.filter((role) => role.id !== id))
+    console.log("Delete functionality not implemented yet")
+    setError("Delete functionality not available")
   }
 
   if (showForm) {
@@ -157,6 +115,8 @@ export default function Role() {
           </div>
         </div>
 
+        {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">{error}</div>}
+
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
@@ -169,32 +129,24 @@ export default function Role() {
                 onChange={(e) => setFormData({ ...formData, roleName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                disabled={loading}
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Status <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
             </div>
           </div>
 
           <div className="flex gap-4">
-            <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-              {editingRole ? "Update" : "Save"}
+            <button
+              type="submit"
+              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? "Saving..." : editingRole ? "Update" : "Save"}
             </button>
             <button
               type="button"
               onClick={resetForm}
               className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              disabled={loading}
             >
               Cancel
             </button>
@@ -235,6 +187,15 @@ export default function Role() {
         </button>
       </div>
 
+      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">{error}</div>}
+
+      {loading && (
+        <div className="text-center py-4">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="mt-2 text-gray-600">Loading roles...</p>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 border-b">
           <div className="flex items-center gap-4">
@@ -263,47 +224,25 @@ export default function Role() {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Action
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Role Code
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Role Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created By
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created On
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Modified By
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Modified On
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role Code</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role Name</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created On</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modified By</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modified On</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredRoles.map((role) => (
-                <tr key={role.id} className="hover:bg-gray-50">
+                <tr key={role?.id ?? role?._id ?? role?.roleCode ?? crypto.randomUUID()} className="hover:bg-gray-50">
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => handleDelete(role.id)}
-                        className="p-1 text-red-600 hover:bg-red-100 rounded"
-                      >
+                      <button onClick={() => handleDelete(role?.id ?? role?._id)} className="p-1 text-red-600 hover:bg-red-100 rounded">
                         <Trash2 className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => handleEdit(role)}
-                        className="p-1 text-green-600 hover:bg-green-100 rounded"
-                      >
+                      <button onClick={() => handleEdit(role)} className="p-1 text-green-600 hover:bg-green-100 rounded">
                         <Edit className="w-4 h-4" />
                       </button>
                       <button className="p-1 text-blue-600 hover:bg-blue-100 rounded">
@@ -311,19 +250,19 @@ export default function Role() {
                       </button>
                     </div>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role.roleCode}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role.roleName}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role.createdBy}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role.createdOn}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role.modifiedBy}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role.modifiedOn}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role?.roleCode ?? "-"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role?.roleName ?? "-"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role?.createdBy ?? "-"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role?.createdOn ?? "-"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role?.modifiedBy ?? "-"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{role?.modifiedOn ?? "-"}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span
                       className={`px-2 py-1 text-xs rounded-full ${
-                        role.status === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                        (role?.status ?? "Inactive") === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                       }`}
                     >
-                      {role.status}
+                      {role?.status ?? "Inactive"}
                     </span>
                   </td>
                 </tr>

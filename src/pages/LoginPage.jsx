@@ -1,50 +1,74 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useAuth } from "../contexts/AuthContext";
-import { Eye, EyeOff, LogIn } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useState } from "react"
+import { useAuth } from "../contexts/AuthContext"
+import { Eye, EyeOff, LogIn } from "lucide-react"
+import { useLocation, useNavigate } from "react-router-dom"
 
 const LoginPage = () => {
-  const [formData, setFormData] = useState({ mobile: "", password: "" });
-  const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false); // kept if you later store non-httpOnly hints
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [formData, setFormData] = useState({ emailOrPhone: "", password: "" })
+  const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false) // kept if you later store non-httpOnly hints
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
-  const { login } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
+  const { login } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  const isEmail = (input) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(input)
+  }
+
+  const isPhoneNumber = (input) => {
+    const phoneRegex = /^[+]?[\d\s\-$$$$]{10,}$/
+    return phoneRegex.test(input.replace(/\s/g, ""))
+  }
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((p) => ({ ...p, [name]: value }));
-    if (error) setError("");
-  };
+    const { name, value } = e.target
+    setFormData((p) => ({ ...p, [name]: value }))
+    if (error) setError("")
+  }
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e.preventDefault()
 
-    if (!formData.mobile || !formData.password) {
-      setError("Please fill in all fields");
-      return;
+    if (!formData.emailOrPhone || !formData.password) {
+      setError("Please fill in all fields")
+      return
     }
 
-    setLoading(true);
-    setError("");
+    if (!isEmail(formData.emailOrPhone) && !isPhoneNumber(formData.emailOrPhone)) {
+      setError("Please enter a valid email address or phone number")
+      return
+    }
 
-    const result = await login(formData, rememberMe);
-    setLoading(false);
+    setLoading(true)
+    setError("")
+
+    const loginData = {
+      password: formData.password,
+    }
+
+    if (isEmail(formData.emailOrPhone)) {
+      loginData.email = formData.emailOrPhone
+    } else {
+      loginData.mobile = formData.emailOrPhone
+    }
+
+    const result = await login(loginData, rememberMe)
+    setLoading(false)
 
     if (!result.success) {
-      setError(result.error);
-      return;
+      setError(result.error)
+      return
     }
 
-    // ✅ After successful login, go back to original page or dashboard
-    const from = location.state?.from?.pathname || "/dashboard";
-    navigate(from, { replace: true });
-  };
+    const from = location.state?.from?.pathname || "/dashboard"
+    navigate(from, { replace: true })
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -55,15 +79,9 @@ const LoginPage = () => {
             <div className="absolute bottom-32 right-1/3 w-24 h-24 bg-blue-400 transform -rotate-12 opacity-15"></div>
             <div className="absolute top-32 left-1/4 w-28 h-28 bg-indigo-400 transform rotate-45 opacity-10"></div>
             <div className="absolute top-1/2 right-1/4 transform -translate-y-1/2 rotate-12">
-              <h1 className="text-6xl font-bold text-red-500 opacity-30 select-none">
-                VISITOR
-              </h1>
-              <h1 className="text-6xl font-bold text-red-500 opacity-30 select-none -mt-4">
-                MANAGEMENT
-              </h1>
-              <h1 className="text-6xl font-bold text-red-500 opacity-30 select-none -mt-4">
-                SYSTEM
-              </h1>
+              <h1 className="text-6xl font-bold text-red-500 opacity-30 select-none">VISITOR</h1>
+              <h1 className="text-6xl font-bold text-red-500 opacity-30 select-none -mt-4">MANAGEMENT</h1>
+              <h1 className="text-6xl font-bold text-red-500 opacity-30 select-none -mt-4">SYSTEM</h1>
             </div>
           </div>
         </div>
@@ -87,29 +105,23 @@ const LoginPage = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label
-                htmlFor="mobile"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Mobile No <span className="text-red-500">*</span>
+              <label htmlFor="emailOrPhone" className="block text-sm font-medium text-gray-700 mb-2">
+                Email or Mobile No <span className="text-red-500">*</span>
               </label>
               <input
-                type="tel"
-                id="mobile"
-                name="mobile"
-                value={formData.mobile}
+                type="text"
+                id="emailOrPhone"
+                name="emailOrPhone"
+                value={formData.emailOrPhone}
                 onChange={handleInputChange}
                 className="input-field"
-                placeholder="Enter your mobile number"
+                placeholder="Enter your email or mobile number"
                 required
               />
             </div>
 
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                 Password <span className="text-red-500">*</span>
               </label>
               <div className="relative">
@@ -141,18 +153,13 @@ const LoginPage = () => {
                 onChange={(e) => setRememberMe(e.target.checked)}
                 className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
               />
-              <label
-                htmlFor="rememberMe"
-                className="ml-2 block text-sm text-gray-700"
-              >
+              <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
                 Remember me
               </label>
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                {error}
-              </div>
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
             )}
 
             <button
@@ -172,16 +179,15 @@ const LoginPage = () => {
           </form>
 
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-xs text-gray-600 font-medium mb-2">
-              Demo Credentials:
-            </p>
+            <p className="text-xs text-gray-600 font-medium mb-2">Demo Credentials:</p>
+            <p className="text-xs text-gray-500">Email: demo@example.com</p>
             <p className="text-xs text-gray-500">Mobile: 9756934671</p>
             <p className="text-xs text-gray-500">Password: password123</p>
           </div>
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default LoginPage;
+export default LoginPage
