@@ -1,41 +1,42 @@
-"use client";
+"use client"
 
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "./contexts/AuthContext";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom"
+import { useAuth } from "./contexts/AuthContext"
 
-import LoginPage from "./pages/LoginPage";
-import DashboardLayout from "./components/layout/DashboardLayout";
-import Dashboard from "./pages/Dashboard";
-import Visitors from "./pages/Visitors";
-import CheckIn from "./pages/CheckIn";
-import Reports from "./pages/Reports";
-import Users from "./pages/Users";
-import Profile from "./pages/Profile";
-import ProtectedRoute from "./components/ProtectedRoute";
-import Company from "./pages/Company";
-import Plant from "./pages/Plant";
-import Area from "./pages/Area";
-import Department from "./pages/Department";
-import RoutePage from "./pages/Route";
-import Gate from "./pages/Gate";
-import Shift from "./pages/Shift";
-import Country from "./pages/Country";
-import State from "./pages/State";
-import City from "./pages/City";
-import UserManagement from "./pages/UserManagement";
-import Role from "./pages/Role";
-import RoleWiseScreenMapping from "./pages/RoleWiseScreenMapping";
-import UserWiseScreenMapping from "./pages/UserWiseScreenMapping";
-import ApprovalConfiguration from "./pages/ApprovalConfiguration";
-import WorkFlow from "./pages/WorkFlow";
-import Appointment from "./pages/Appointment";
-import CheckInOut from "./pages/CheckInOut";
-import CheckInCheckOutReport from "./pages/CheckInCheckOutReport";
-import VehicleInvoiceReport from "./pages/VehicleInvoiceReport";
-import FeedbackReport from "./pages/FeedbackReport";
+import LoginPage from "./pages/LoginPage"
+import DashboardLayout from "./components/layout/DashboardLayout"
+import Dashboard from "./pages/Dashboard"
+import Visitors from "./pages/Visitors"
+import CheckIn from "./pages/CheckIn"
+import Reports from "./pages/Reports"
+import Users from "./pages/Users"
+import Profile from "./pages/Profile"
+import ProtectedRoute from "./components/ProtectedRoute"
+import Company from "./pages/Company"
+import Plant from "./pages/Plant"
+import Area from "./pages/Area"
+import Department from "./pages/Department"
+import RoutePage from "./pages/Route"
+import Gate from "./pages/Gate"
+import Shift from "./pages/Shift"
+import Country from "./pages/Country"
+import State from "./pages/State"
+import City from "./pages/City"
+import UserManagement from "./pages/UserManagement"
+import Role from "./pages/Role"
+import RoleWiseScreenMapping from "./pages/RoleWiseScreenMapping"
+import UserWiseScreenMapping from "./pages/UserWiseScreenMapping"
+import ApprovalConfiguration from "./pages/ApprovalConfiguration"
+import WorkFlow from "./pages/WorkFlow"
+import Appointment from "./pages/Appointment"
+import CheckInOut from "./pages/CheckInOut"
+import CheckInCheckOutReport from "./pages/CheckInCheckOutReport"
+import VehicleInvoiceReport from "./pages/VehicleInvoiceReport"
+import FeedbackReport from "./pages/FeedbackReport"
+import PlantType from "./pages/PlantType"
 
 const AuthGate = ({ children }) => {
-  const { isLoading } = useAuth();
+  const { isLoading } = useAuth()
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -44,24 +45,24 @@ const AuthGate = ({ children }) => {
           <p className="text-sm text-gray-600">Loading...</p>
         </div>
       </div>
-    );
+    )
   }
-  return children;
-};
+  return children
+}
 
 // /login should be accessible only to guests
 const GuestRoute = ({ children }) => {
-  const { isAuthenticated } = useAuth();
-  const location = useLocation();
-  const from = location.state?.from?.pathname;
+  const { isAuthenticated } = useAuth()
+  const location = useLocation()
+  const from = location.state?.from?.pathname
   if (isAuthenticated) {
-    return <Navigate to={from || "/dashboard"} replace />;
+    return <Navigate to={from || "/dashboard"} replace />
   }
-  return children;
-};
+  return children
+}
 
 function App() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth()
 
   return (
     <AuthGate>
@@ -75,12 +76,7 @@ function App() {
           }
         />
 
-        <Route
-          path="/"
-          element={
-            <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
-          }
-        />
+        <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
 
         <Route
           path="/"
@@ -96,6 +92,7 @@ function App() {
           <Route path="reports" element={<Reports />} />
           <Route path="company" element={<Company />} />
           <Route path="plant" element={<Plant />} />
+          <Route path="plant-type" element={<PlantType />} />
           <Route path="area" element={<Area />} />
           <Route path="department" element={<Department />} />
           <Route path="route" element={<RoutePage />} />
@@ -106,29 +103,14 @@ function App() {
           <Route path="city" element={<City />} />
           <Route path="role" element={<Role />} />
           <Route path="user-management" element={<UserManagement />} />
-          <Route
-            path="role-wise-screen-mapping"
-            element={<RoleWiseScreenMapping />}
-          />
-          <Route
-            path="user-wise-screen-mapping"
-            element={<UserWiseScreenMapping />}
-          />
-          <Route
-            path="approval-configuration"
-            element={<ApprovalConfiguration />}
-          />
+          <Route path="role-wise-screen-mapping" element={<RoleWiseScreenMapping />} />
+          <Route path="user-wise-screen-mapping" element={<UserWiseScreenMapping />} />
+          <Route path="approval-configuration" element={<ApprovalConfiguration />} />
           <Route path="workflow" element={<WorkFlow />} />
           <Route path="appointment" element={<Appointment />} />
           <Route path="checkinout" element={<CheckInOut />} />
-          <Route
-            path="checkin-checkout-report"
-            element={<CheckInCheckOutReport />}
-          />
-          <Route
-            path="vehicle-invoice-report"
-            element={<VehicleInvoiceReport />}
-          />
+          <Route path="checkin-checkout-report" element={<CheckInCheckOutReport />} />
+          <Route path="vehicle-invoice-report" element={<VehicleInvoiceReport />} />
           <Route path="feedback-report" element={<FeedbackReport />} />
 
           <Route
@@ -145,17 +127,11 @@ function App() {
         {/* Unknown URL handling */}
         <Route
           path="*"
-          element={
-            isAuthenticated ? (
-              <Navigate to="/dashboard" replace />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
+          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
         />
       </Routes>
     </AuthGate>
-  );
+  )
 }
 
-export default App;
+export default App

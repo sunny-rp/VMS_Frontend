@@ -1,217 +1,153 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Search, Plus, Edit, Trash2, Eye } from "lucide-react"
+import { departmentsAPI, usersAPI } from "../services/api"
+
+// helpers
+const toId = (x) => x?.id || x?._id || x?._id?.toString?.() || ""
+const s = (v) => (typeof v === "string" ? v : "")
+
+const normalizeUser = (u) => ({
+  id: toId(u),
+  name: s(u?.fullname || u?.name || u?.username || u?.email),
+})
+
+const normalizeDepartment = (d) => {
+  const id = toId(d)
+  const hodId = toId(d?.headOfDepartment ?? d?.headOfDepartmentId)
+  const hodName =
+    (d?.headOfDepartment && (d.headOfDepartment.fullname || d.headOfDepartment.name || d.headOfDepartment.email)) ||
+    d?.headOfDepartmentName ||
+    ""
+  return {
+    id,
+    departmentName: s(d?.departmentName),
+    status: d?.status || "Active",
+    headOfDepartmentId: hodId,
+    headOfDepartmentName: s(hodName),
+  }
+}
 
 const Department = () => {
-  const [view, setView] = useState("list") // 'list' or 'form'
+  const [view, setView] = useState("list")
   const [departments, setDepartments] = useState([])
-  const [filteredDepartments, setFilteredDepartments] = useState([])
+  const [users, setUsers] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [editingDepartment, setEditingDepartment] = useState(null)
-  const [formData, setFormData] = useState({
-    departmentName: "",
-    headOfDepartment: "",
-    status: "Active",
-  })
+  const [formData, setFormData] = useState({ departmentName: "", headOfDepartmentId: "" })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
-  // Mock data for departments
+  const fetchDepartments = async () => {
+    try {
+      setLoading(true)
+      const res = await departmentsAPI.getAll()
+      const list = (res?.data || []).map(normalizeDepartment)
+      setDepartments(list)
+      setError("")
+    } catch (e) {
+      console.error("Error fetching departments:", e)
+      setError("Failed to fetch departments")
+      setDepartments([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchUsers = async () => {
+    try {
+      const res = await usersAPI.getAll()
+      setUsers((res?.data || []).map(normalizeUser))
+    } catch (e) {
+      console.error("Error fetching users:", e)
+      setUsers([])
+    }
+  }
+
   useEffect(() => {
-    const mockDepartments = [
-      {
-        id: 1,
-        departmentCode: "DPT00001",
-        departmentName: "IT Department",
-        headOfDepartment: "John Smith",
-        createdBy: "Super Admin",
-        createdOn: "2025-08-30 17:25:20",
-        modifiedBy: "Super Admin",
-        modifiedOn: "2025-09-01 15:45:00",
-        status: "Active",
-      },
-      {
-        id: 2,
-        departmentCode: "DPT00005",
-        departmentName: "ASSEMBLY",
-        headOfDepartment: "Mike Johnson",
-        createdBy: "Adhish Pandit",
-        createdOn: "2025-09-01 14:48:23",
-        modifiedBy: "Adhish Pandit",
-        modifiedOn: "2025-09-01 15:44:32",
-        status: "Active",
-      },
-      {
-        id: 3,
-        departmentCode: "DPT00007",
-        departmentName: "CUTTING",
-        headOfDepartment: "Sarah Wilson",
-        createdBy: "Adhish Pandit",
-        createdOn: "2025-09-01 14:48:43",
-        modifiedBy: "Adhish Pandit",
-        modifiedOn: "2025-09-01 15:43:36",
-        status: "Active",
-      },
-      {
-        id: 4,
-        departmentCode: "DPT00011",
-        departmentName: "LAB",
-        headOfDepartment: "David Brown",
-        createdBy: "Adhish Pandit",
-        createdOn: "2025-09-01 14:49:24",
-        modifiedBy: "Adhish Pandit",
-        modifiedOn: "2025-09-01 15:43:20",
-        status: "Active",
-      },
-      {
-        id: 5,
-        departmentCode: "DPT00013",
-        departmentName: "ME",
-        headOfDepartment: "Lisa Davis",
-        createdBy: "Adhish Pandit",
-        createdOn: "2025-09-01 14:49:43",
-        modifiedBy: "Adhish Pandit",
-        modifiedOn: "2025-09-01 15:43:04",
-        status: "Active",
-      },
-      {
-        id: 6,
-        departmentCode: "DPT00008",
-        departmentName: "ERP",
-        headOfDepartment: "Robert Miller",
-        createdBy: "Adhish Pandit",
-        createdOn: "2025-09-01 14:48:59",
-        modifiedBy: "Adhish Pandit",
-        modifiedOn: "2025-09-01 15:42:34",
-        status: "Active",
-      },
-      {
-        id: 7,
-        departmentCode: "DPT00009",
-        departmentName: "HR & ADMIN",
-        headOfDepartment: "Jennifer Garcia",
-        createdBy: "Adhish Pandit",
-        createdOn: "2025-09-01 14:49:05",
-        modifiedBy: "Adhish Pandit",
-        modifiedOn: "2025-09-01 15:42:15",
-        status: "Active",
-      },
-      {
-        id: 8,
-        departmentCode: "DPT00015",
-        departmentName: "PLANNING",
-        headOfDepartment: "Michael Rodriguez",
-        createdBy: "Adhish Pandit",
-        createdOn: "2025-09-01 14:50:05",
-        modifiedBy: "Adhish Pandit",
-        modifiedOn: "2025-09-01 15:41:17",
-        status: "Active",
-      },
-      {
-        id: 9,
-        departmentCode: "DPT00012",
-        departmentName: "MAINTENANCE",
-        headOfDepartment: "William Martinez",
-        createdBy: "Adhish Pandit",
-        createdOn: "2025-09-01 14:49:37",
-        modifiedBy: "Adhish Pandit",
-        modifiedOn: "2025-09-01 15:41:07",
-        status: "Active",
-      },
-      {
-        id: 10,
-        departmentCode: "DPT00014",
-        departmentName: "OPERATION",
-        headOfDepartment: "Jessica Anderson",
-        createdBy: "Adhish Pandit",
-        createdOn: "2025-09-01 14:49:58",
-        modifiedBy: "Adhish Pandit",
-        modifiedOn: "2025-09-01 15:40:54",
-        status: "Active",
-      },
-    ]
-    setDepartments(mockDepartments)
-    setFilteredDepartments(mockDepartments)
+    fetchDepartments()
+    fetchUsers()
   }, [])
 
-  // Filter departments based on search
-  useEffect(() => {
-    const filtered = departments.filter(
-      (dept) =>
-        dept.departmentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        dept.departmentCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        dept.headOfDepartment.toLowerCase().includes(searchTerm.toLowerCase()),
+  const filteredDepartments = useMemo(() => {
+    const q = searchTerm.toLowerCase()
+    return departments.filter(
+      (d) =>
+        d.departmentName?.toLowerCase().includes(q) ||
+        d.headOfDepartmentName?.toLowerCase().includes(q),
     )
-    setFilteredDepartments(filtered)
-  }, [searchTerm, departments])
+  }, [departments, searchTerm])
 
   const handleAddNew = () => {
     setEditingDepartment(null)
-    setFormData({
-      departmentName: "",
-      headOfDepartment: "",
-      status: "Active",
-    })
+    setFormData({ departmentName: "", headOfDepartmentId: "" })
+    setError("")
     setView("form")
   }
 
   const handleEdit = (department) => {
     setEditingDepartment(department)
     setFormData({
-      departmentName: department.departmentName,
-      headOfDepartment: department.headOfDepartment,
-      status: department.status,
+      departmentName: department.departmentName || "",
+      headOfDepartmentId: department.headOfDepartmentId || "",
     })
+    setError("")
     setView("form")
   }
 
-  const handleDelete = (id) => {
-    if (window.confirm("Are you sure you want to delete this department?")) {
-      setDepartments(departments.filter((dept) => dept.id !== id))
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this department?")) return
+    try {
+      setLoading(true)
+      await departmentsAPI.delete(id)
+      await fetchDepartments()
+    } catch (e) {
+      console.error("Error deleting department:", e)
+      setError(e?.response?.data?.message || "Failed to delete department")
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-
-    if (editingDepartment) {
-      // Update existing department
-      setDepartments(
-        departments.map((dept) =>
-          dept.id === editingDepartment.id
-            ? {
-                ...dept,
-                ...formData,
-                modifiedBy: "Current User",
-                modifiedOn: new Date().toLocaleString("sv-SE").replace("T", " "),
-              }
-            : dept,
-        ),
-      )
-    } else {
-      // Add new department
-      const newDepartment = {
-        id: departments.length + 1,
-        departmentCode: `DPT${String(departments.length + 1).padStart(5, "0")}`,
-        ...formData,
-        createdBy: "Current User",
-        createdOn: new Date().toLocaleString("sv-SE").replace("T", " "),
-        modifiedBy: "Current User",
-        modifiedOn: new Date().toLocaleString("sv-SE").replace("T", " "),
-      }
-      setDepartments([...departments, newDepartment])
+    if (!formData.departmentName.trim()) {
+      setError("Department name is required")
+      return
     }
 
-    setView("list")
+    try {
+      setLoading(true)
+      setError("")
+      const payload = {
+        departmentName: formData.departmentName,
+        headOfDepartment: formData.headOfDepartmentId, // send ID to backend
+      }
+
+      if (editingDepartment) {
+        await departmentsAPI.update(editingDepartment.id, payload)
+      } else {
+        await departmentsAPI.create(payload)
+      }
+
+      await fetchDepartments()
+      setView("list")
+      setEditingDepartment(null)
+      setFormData({ departmentName: "", headOfDepartmentId: "" })
+    } catch (e) {
+      console.error("Error saving department:", e)
+      setError(e?.response?.data?.message || e?.message || "Failed to save department")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleCancel = () => {
     setView("list")
     setEditingDepartment(null)
-    setFormData({
-      departmentName: "",
-      headOfDepartment: "",
-      status: "Active",
-    })
+    setFormData({ departmentName: "", headOfDepartmentId: "" })
+    setError("")
   }
 
   if (view === "form") {
@@ -223,20 +159,24 @@ const Department = () => {
             <button
               onClick={handleCancel}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+              disabled={loading}
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
             >
-              {editingDepartment ? "Update" : "Save"}
+              {loading ? "Saving..." : editingDepartment ? "Update" : "Save"}
             </button>
           </div>
         </div>
 
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{error}</div>}
+
         <div className="bg-white rounded-lg shadow p-6">
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Department Name<span className="text-red-500">*</span>
@@ -247,43 +187,30 @@ const Department = () => {
                 onChange={(e) => setFormData({ ...formData, departmentName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                disabled={loading}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Head Of Department</label>
               <select
-                value={formData.headOfDepartment}
-                onChange={(e) => setFormData({ ...formData, headOfDepartment: e.target.value })}
+                value={formData.headOfDepartmentId}
+                onChange={(e) => setFormData({ ...formData, headOfDepartmentId: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={loading}
               >
-                <option value="">Head Of Department</option>
-                <option value="John Smith">John Smith</option>
-                <option value="Mike Johnson">Mike Johnson</option>
-                <option value="Sarah Wilson">Sarah Wilson</option>
-                <option value="David Brown">David Brown</option>
-                <option value="Lisa Davis">Lisa Davis</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Status<span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
+                <option value="">Select Head Of Department</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
               </select>
             </div>
           </form>
         </div>
 
-        {/* 3D Cube Graphics */}
+        {/* 3D Cube Graphics (unchanged) */}
         <div className="fixed bottom-8 right-8">
           <div className="relative">
             <div className="w-32 h-32 bg-gradient-to-br from-cyan-400 to-blue-600 transform rotate-12 rounded-lg shadow-lg flex flex-col items-center justify-center text-white">
@@ -314,6 +241,8 @@ const Department = () => {
         </button>
       </div>
 
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{error}</div>}
+
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 border-b border-gray-200">
           <div className="relative">
@@ -329,76 +258,56 @@ const Department = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Action
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Department Code
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Department Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created By
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created On
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Modified By
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Modified On
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredDepartments.map((department) => (
-                <tr key={department.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleDelete(department.id)}
-                        className="p-1 text-red-600 hover:text-red-800"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleEdit(department)}
-                        className="p-1 text-green-600 hover:text-green-800"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button className="p-1 text-blue-600 hover:text-blue-800">
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{department.departmentCode}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{department.departmentName}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{department.createdBy}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{department.createdOn}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{department.modifiedBy}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{department.modifiedOn}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        department.status === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {department.status}
-                    </span>
-                  </td>
+          {loading ? (
+            <div className="p-8 text-center">
+              <div className="text-gray-500">Loading departments...</div>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Head Of Department</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredDepartments.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="px-6 py-4 text-center text-gray-500">No departments found</td>
+                  </tr>
+                ) : (
+                  filteredDepartments.map((d) => (
+                    <tr key={d.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex space-x-2">
+                          <button onClick={() => handleDelete(d.id)} className="p-1 text-red-600 hover:text-red-800">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleEdit(d)} className="p-1 text-green-600 hover:text-green-800">
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button className="p-1 text-blue-600 hover:text-blue-800">
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{d.departmentName}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{d.headOfDepartmentName || "Not assigned"}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          d.status === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                        }`}>
+                          {d.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
 
         <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
@@ -415,9 +324,7 @@ const Department = () => {
               <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">›</button>
               <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">»</button>
               <select className="ml-2 px-2 py-1 text-sm border border-gray-300 rounded">
-                <option>10</option>
-                <option>25</option>
-                <option>50</option>
+                <option>10</option><option>25</option><option>50</option>
               </select>
             </div>
           </div>

@@ -269,7 +269,7 @@ export const usersAPI = {
     if (filters.status) queryParams.append("status", filters.status)
     if (filters.role) queryParams.append("role", filters.role)
 
-    const endpoint = `/users${queryParams.toString() ? `?${queryParams.toString()}` : ""}`
+    const endpoint = `/user/fetch-users${queryParams.toString() ? `?${queryParams.toString()}` : ""}`
     return await apiClient.request(endpoint)
   },
 
@@ -375,6 +375,17 @@ export const plantTypesAPI = {
   getAll: async () => {
     return await apiClient.request("/user/plant-types/fetch-plant-types")
   },
+  update: async (id, plantTypeData) => {
+    return await apiClient.request(`/user/plant-types/update-plant-type/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(plantTypeData),
+    })
+  },
+  delete: async (id) => {
+    return await apiClient.request(`/user/plant-types/delete-plant-type/${id}`, {
+      method: "DELETE",
+    })
+  },
 }
 
 export const plantsAPI = {
@@ -410,5 +421,28 @@ export const gatesAPI = {
   },
   getAll: async () => {
     return await apiClient.request("/user/gates/fetch-gates")
+  },
+}
+
+export const areasAPI = {
+  create: async (areaData) => {
+    return await apiClient.request("/user/areas/create-area", {
+      method: "POST",
+      body: JSON.stringify(areaData),
+    })
+  },
+  getAll: async () => {
+    return await apiClient.request("/user/areas/fetch-areas")
+  },
+  update: async (id, areaData) => {
+    return await apiClient.request(`/user/areas/update-area/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(areaData),
+    })
+  },
+  delete: async (id) => {
+    return await apiClient.request(`/user/areas/delete-area/${id}`, {
+      method: "DELETE",
+    })
   },
 }
