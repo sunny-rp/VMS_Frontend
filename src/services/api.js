@@ -446,3 +446,34 @@ export const areasAPI = {
     })
   },
 }
+
+export const appointmentsAPI = {
+  create: async (appointmentData) => {
+    return await apiClient.request("/user/appointments/create-appointment", {
+      method: "POST",
+      body: JSON.stringify(appointmentData),
+    })
+  },
+  getAll: async (filters = {}) => {
+    const queryParams = new URLSearchParams()
+    if (filters.search) queryParams.append("search", filters.search)
+    if (filters.status) queryParams.append("status", filters.status)
+
+    const endpoint = `/user/appointments/fetch-appointments${queryParams.toString() ? `?${queryParams.toString()}` : ""}`
+    return await apiClient.request(endpoint)
+  },
+  getById: async (appointmentId) => {
+    return await apiClient.request(`/user/appointments/${appointmentId}`)
+  },
+  update: async (appointmentId, updateData) => {
+    return await apiClient.request(`/user/appointments/${appointmentId}`, {
+      method: "PUT",
+      body: JSON.stringify(updateData),
+    })
+  },
+  delete: async (appointmentId) => {
+    return await apiClient.request(`/user/appointments/${appointmentId}`, {
+      method: "DELETE",
+    })
+  },
+}

@@ -1,48 +1,109 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { visitorsAPI } from "../services/api"
-import { Plus } from "lucide-react"
+import { appointmentsAPI, usersAPI, plantsAPI, departmentsAPI, areasAPI } from "../services/api"
+import { Plus, Search, X, Calendar, Camera } from "lucide-react"
 
 const Visitors = () => {
   const [visitors, setVisitors] = useState([])
-  const [hosts, setHosts] = useState([])
+  const [appointments, setAppointments] = useState([])
   const [loading, setLoading] = useState(true)
-  const [preAppointment, setPreAppointment] = useState(false)
-  const [selectedPassType, setSelectedPassType] = useState("one_day")
   const [searchVisitor, setSearchVisitor] = useState("")
-  const [searchHost, setSearchHost] = useState("")
+  const [searchPersonToVisit, setSearchPersonToVisit] = useState("")
+  const [showForm, setShowForm] = useState(false)
+
+  const [formData, setFormData] = useState({
+    plant: "",
+    department: "",
+    personToVisit: "",
+    areaToVisit: "",
+    appointmentDate: "",
+    appointmentValidTill: "",
+    purposeOfVisit: "",
+    visitors: [
+      {
+        mobile: "",
+        fullname: "",
+        company: "",
+        email: "",
+        belongings: [],
+      },
+    ],
+  })
+
+  const [dropdownData, setDropdownData] = useState({
+    plants: [],
+    departments: [],
+    users: [],
+    areas: [],
+  })
+
+  const [belongings, setBelongings] = useState([])
 
   useEffect(() => {
     loadData()
+    loadDropdownData()
   }, [])
+
+  const loadDropdownData = async () => {
+    try {
+      const [plantsRes, departmentsRes, usersRes, areasRes] = await Promise.all([
+        plantsAPI.getAll(),
+        departmentsAPI.getAll(),
+        usersAPI.getAll(),
+        areasAPI.getAll(),
+      ])
+
+      setDropdownData({
+        plants: Array.isArray(plantsRes.data) ? plantsRes.data : [],
+        departments: Array.isArray(departmentsRes.data) ? departmentsRes.data : [],
+        users: Array.isArray(usersRes.data) ? usersRes.data : [],
+        areas: Array.isArray(areasRes.data) ? areasRes.data : [],
+      })
+    } catch (error) {
+      console.error("Error loading dropdown data:", error)
+    }
+  }
 
   const loadData = async () => {
     try {
       setLoading(true)
-      const [visitorsResponse, hostsResponse] = await Promise.all([
-        visitorsAPI.getAll({ search: searchVisitor }),
-        visitorsAPI.getHosts({ search: searchHost }),
-      ])
-      setVisitors(visitorsResponse.data)
-      setHosts(
-        hostsResponse.data || [
-          { id: 1, name: "PRAKASH SHARMA", userId: "USR00026", phone: "8950910790", company: "SHUFAB" },
-          { id: 2, name: "SACHENDAR SINGH", userId: "USR00025", phone: "9818290470", company: "SHUFAB" },
-          { id: 3, name: "PUNIT SHARMA", userId: "USR00024", phone: "9813147278", company: "SHUFAB" },
-          { id: 4, name: "NEERAJ KUMAR", userId: "USR00022", phone: "9350502027", company: "SHUFAB" },
-          { id: 5, name: "ASHOK KUMAR BIRLA", userId: "USR00023", phone: "7888323991", company: "SHUFAB" },
-          { id: 6, name: "RIDHAM BEHL", userId: "USR00021", phone: "8744000239", company: "SHUFAB" },
-          { id: 7, name: "SANJEEV KUMAR", userId: "USR00020", phone: "9810867384", company: "SHUFAB" },
-          { id: 8, name: "CHITTA RANJAN GADANAYAK", userId: "USR00019", phone: "9810980157", company: "SHUFAB" },
-          { id: 9, name: "RAVI SARASWAT", userId: "USR00018", phone: "9560639157", company: "SHUFAB" },
-          { id: 10, name: "GURDEEP WALIA", userId: "USR00018", phone: "", company: "SHUFAB" },
-          { id: 11, name: "ABHISHEK SINGH JADON", userId: "USR00016", phone: "", company: "SHUFAB" },
-          { id: 12, name: "ASHISH KUMAR", userId: "USR00015", phone: "", company: "SHUFAB" },
-        ],
-      )
+      const appointmentsResponse = await appointmentsAPI.getAll({
+        search: searchVisitor || searchPersonToVisit,
+      })
+
+      console.log("[v0] Appointments response:", appointmentsResponse)
+
+      const appointmentsData = Array.isArray(appointmentsResponse.data) ? appointmentsResponse.data : []
+
+      const transformedVisitors = appointmentsData.map((appointment, index) => ({
+        id: appointment.appointmentId || appointment._id || `APP${index + 1}`,
+        name: appointment.visitors?.[0]?.fullname?.toUpperCase() || "UNKNOWN VISITOR",
+        mobile: appointment.visitors?.[0]?.mobile || "N/A",
+        company: appointment.visitors?.[0]?.company || "N/A",
+        status: "Active", // You can add status logic based on appointment dates
+        checkInTime: new Date(appointment.appointmentDate).toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        personToVisit:
+          appointment.personToVisit?.fullname?.toUpperCase() ||
+          appointment.personToVisit?.name?.toUpperCase() ||
+          "UNKNOWN",
+        purpose: appointment.purposeOfVisit || "N/A",
+        appointmentDate: appointment.appointmentDate,
+        appointmentValidTill: appointment.appointmentValidTill,
+        plant: appointment.plant,
+        department: appointment.department,
+        areaToVisit: appointment.areaToVisit,
+      }))
+
+      setAppointments(appointmentsData)
+      setVisitors(transformedVisitors)
     } catch (error) {
-      console.error("Error loading data:", error)
+      console.error("[v0] Error loading appointments:", error)
+      setAppointments([])
+      setVisitors([])
     } finally {
       setLoading(false)
     }
@@ -52,160 +113,519 @@ const Visitors = () => {
     loadData()
   }
 
-  const handleCheckOut = async (visitorId) => {
+  const handleInputChange = (field, value) => {
+    if (field.startsWith("visitor.")) {
+      const visitorField = field.replace("visitor.", "")
+      setFormData((prev) => ({
+        ...prev,
+        visitors: [
+          {
+            ...prev.visitors[0],
+            [visitorField]: value,
+          },
+        ],
+      }))
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [field]: value,
+      }))
+    }
+  }
+
+  const addBelonging = () => {
+    const newBelonging = {
+      id: Date.now(),
+      assetName: "",
+    }
+    setBelongings([...belongings, newBelonging])
+  }
+
+  const removeBelonging = (id) => {
+    setBelongings(belongings.filter((item) => item.id !== id))
+  }
+
+  const updateBelonging = (id, field, value) => {
+    setBelongings(belongings.map((item) => (item.id === id ? { ...item, [field]: value } : item)))
+  }
+
+  const handleSave = async () => {
     try {
-      await visitorsAPI.checkOut(visitorId)
-      loadData() // Reload the list
+      const appointmentData = {
+        plant: formData.plant,
+        department: formData.department,
+        personToVisit: formData.personToVisit,
+        areaToVisit: formData.areaToVisit,
+        appointmentDate: formData.appointmentDate,
+        appointmentValidTill: formData.appointmentValidTill,
+        purposeOfVisit: formData.purposeOfVisit,
+        visitors: [
+          {
+            mobile: Number.parseInt(formData.visitors[0].mobile) || 0,
+            fullname: formData.visitors[0].fullname,
+            company: formData.visitors[0].company,
+            email: formData.visitors[0].email,
+            belongings: belongings.map((item) => ({
+              assetName: item.assetName,
+            })),
+          },
+        ],
+      }
+
+      console.log("[v0] Saving appointment:", appointmentData)
+
+      const response = await appointmentsAPI.create(appointmentData)
+
+      if (response.success) {
+        console.log("[v0] Appointment created successfully:", response)
+        alert("Appointment created successfully!")
+        setShowForm(false)
+        handleClear()
+        loadData() // Reload the appointments list
+      } else {
+        console.error("[v0] Failed to create appointment:", response)
+        alert("Failed to create appointment. Please try again.")
+      }
     } catch (error) {
-      console.error("Error checking out visitor:", error)
+      console.error("[v0] Error creating appointment:", error)
+      alert("Error creating appointment: " + (error.message || "Unknown error"))
     }
   }
 
-  const formatTime = (timeString) => {
-    return new Date(timeString).toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
+  const handleClear = () => {
+    setFormData({
+      plant: "",
+      department: "",
+      personToVisit: "",
+      areaToVisit: "",
+      appointmentDate: "",
+      appointmentValidTill: "",
+      purposeOfVisit: "",
+      visitors: [
+        {
+          mobile: "",
+          fullname: "",
+          company: "",
+          email: "",
+          belongings: [],
+        },
+      ],
     })
-  }
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-800"
-      case "checked_out":
-        return "bg-gray-100 text-gray-800"
-      case "pending":
-        return "bg-orange-100 text-orange-800"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
+    setBelongings([])
   }
 
   return (
-    <div>
-      {/* Pre-Appointment toggle */}
-      <div className="flex items-center justify-center py-6">
-        <div className="flex items-center gap-3">
-          <span className="text-gray-700 font-medium text-lg">Pre-Appointment?</span>
-          <button
-            onClick={() => setPreAppointment(!preAppointment)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              preAppointment ? "bg-blue-500" : "bg-gray-300"
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                preAppointment ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
-        </div>
-      </div>
+    <div className="p-6">
+      {!showForm ? (
+        <>
+          {/* Header with search and add button */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-2xl font-bold text-gray-900">Visitor Management</h1>
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Add Visitor
+              </button>
+            </div>
 
-      {/* Pass type selection */}
-      <div className="flex justify-center gap-6 mb-8">
-        <button
-          onClick={() => setSelectedPassType("one_day")}
-          className={`flex flex-col items-center p-6 rounded-lg transition-colors min-w-[200px] ${
-            selectedPassType === "one_day"
-              ? "bg-blue-100 border-2 border-blue-300"
-              : "bg-white border-2 border-gray-200 hover:border-gray-300"
-          }`}
-        >
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-3">
-            <div className="text-2xl">👨‍💼</div>
+            <div className="flex gap-4">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="Search Visitor Name"
+                  value={searchVisitor}
+                  onChange={(e) => setSearchVisitor(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="Search Person to Visit"
+                  value={searchPersonToVisit}
+                  onChange={(e) => setSearchPersonToVisit(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <button
+                onClick={handleSearch}
+                className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Search
+              </button>
+            </div>
           </div>
-          <span className="font-bold text-gray-900">ONE DAY PASS</span>
-        </button>
 
-        <button
-          onClick={() => setSelectedPassType("extended")}
-          className={`flex flex-col items-center p-6 rounded-lg transition-colors min-w-[200px] ${
-            selectedPassType === "extended"
-              ? "bg-blue-100 border-2 border-blue-300"
-              : "bg-white border-2 border-gray-200 hover:border-gray-300"
-          }`}
-        >
-          <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-3">
-            <div className="text-2xl">👷‍♂️</div>
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Active Visitors</h2>
+
+            {loading ? (
+              <div className="bg-blue-50 text-blue-700 p-4 rounded-lg text-center">Loading visitors...</div>
+            ) : visitors.length === 0 ? (
+              <div className="bg-gray-50 text-gray-600 p-8 rounded-lg text-center">
+                <div className="text-4xl mb-2">👥</div>
+                <p className="font-medium">No Active Visitors</p>
+                <p className="text-sm text-gray-500 mt-1">Click "Add Visitor" to register a new visitor</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {visitors
+                  .filter((visitor) => {
+                    const matchesVisitorName = visitor.name.toLowerCase().includes(searchVisitor.toLowerCase())
+                    const matchesPersonToVisit = visitor.personToVisit
+                      .toLowerCase()
+                      .includes(searchPersonToVisit.toLowerCase())
+                    return matchesVisitorName && matchesPersonToVisit
+                  })
+                  .map((visitor) => (
+                    <div
+                      key={visitor.id}
+                      className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-lg text-gray-900 mb-1">{visitor.name}</h3>
+                          <span className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
+                            {visitor.status || "Active"}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-500 font-medium">{visitor.id}</p>
+                          <p className="text-xs text-gray-400">{visitor.checkInTime}</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-400">📱</span>
+                          <span className="text-gray-700">{visitor.mobile}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-400">🏢</span>
+                          <span className="text-gray-700">{visitor.company}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-400">👤</span>
+                          <span className="text-gray-700">{visitor.personToVisit}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-400">📋</span>
+                          <span className="text-gray-700">{visitor.purpose}</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        <div className="flex gap-2">
+                          <button className="flex-1 bg-blue-50 text-blue-600 py-2 px-3 rounded text-sm font-medium hover:bg-blue-100 transition-colors">
+                            View Details
+                          </button>
+                          <button className="flex-1 bg-red-50 text-red-600 py-2 px-3 rounded text-sm font-medium hover:bg-red-100 transition-colors">
+                            Check Out
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
-          <span className="font-bold text-gray-900">EXTENDED PASS</span>
-        </button>
-      </div>
 
-      {/* Search fields */}
-      <div className="flex justify-center gap-4 mb-8">
-        <div className="relative flex-1 max-w-md">
-          <input
-            type="text"
-            placeholder="Search Visitor Name"
-            value={searchVisitor}
-            onChange={(e) => setSearchVisitor(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
+          {/* Stats card */}
+          <div className="fixed bottom-6 right-6">
+            <div className="bg-red-500 text-white p-4 rounded-lg shadow-lg min-w-[140px] text-center">
+              <div className="text-sm font-medium">Pending</div>
+              <div className="text-sm font-medium">Check-Outs</div>
+              <div className="text-3xl font-bold mt-2">0</div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          {/* Form Header */}
+          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <h2 className="text-xl font-semibold text-gray-900">Visitor Entry</h2>
+            <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
 
-        <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-600">
-          <Plus className="w-6 h-6 text-white" />
-        </div>
-
-        <div className="relative flex-1 max-w-md">
-          <input
-            type="text"
-            placeholder="Search Person to Visit"
-            value={searchHost}
-            onChange={(e) => setSearchHost(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-      </div>
-
-      {/* Main content grid */}
-      <div className="grid grid-cols-2 gap-8">
-        {/* Left column - Visitors */}
-        <div className="space-y-4">
-          {loading ? (
-            <div className="bg-blue-100 text-blue-800 p-4 rounded-lg text-center">Loading visitors...</div>
-          ) : visitors.length === 0 ? (
-            <div className="bg-blue-100 text-blue-800 p-4 rounded-lg text-center font-medium">No Visitors Found</div>
-          ) : (
-            visitors.map((visitor) => (
-              <div key={visitor.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-start justify-between mb-2">
+          <div className="p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Left side - Form fields */}
+              <div className="lg:col-span-3 space-y-6">
+                {/* Top row */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <h3 className="font-semibold text-blue-600">{visitor.name} - Active</h3>
-                    <p className="text-sm text-gray-600">{visitor.id}</p>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Plant <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.plant}
+                      onChange={(e) => handleInputChange("plant", e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select Plant</option>
+                      {dropdownData.plants.map((plant) => (
+                        <option key={plant._id} value={plant._id}>
+                          {(plant.plantName || plant.name || "").toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Department <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.department}
+                      onChange={(e) => handleInputChange("department", e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select Department</option>
+                      {dropdownData.departments.map((dept) => (
+                        <option key={dept._id} value={dept._id}>
+                          {(dept.departmentName || dept.name || "").toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Person to Visit <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.personToVisit}
+                      onChange={(e) => handleInputChange("personToVisit", e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Person to Visit</option>
+                      {dropdownData.users.map((user) => (
+                        <option key={user._id} value={user._id}>
+                          {(user.fullname || user.name || "").toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
-                <p className="text-sm text-gray-600">{visitor.mobile}</p>
-                <p className="text-sm text-gray-600">{visitor.company}</p>
+
+                {/* Second row */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Area To Visit <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.areaToVisit}
+                      onChange={(e) => handleInputChange("areaToVisit", e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Area To Visit</option>
+                      {dropdownData.areas.map((area) => (
+                        <option key={area._id} value={area._id}>
+                          {(area.areaName || area.name || "").toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Appointment Date <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="datetime-local"
+                        value={formData.appointmentDate}
+                        onChange={(e) => handleInputChange("appointmentDate", e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <Calendar className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Appointment Valid Till <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="datetime-local"
+                        value={formData.appointmentValidTill}
+                        onChange={(e) => handleInputChange("appointmentValidTill", e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <Calendar className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Third row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Purpose Of Visit <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.purposeOfVisit}
+                      onChange={(e) => handleInputChange("purposeOfVisit", e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Purpose Of Visit</option>
+                      <option value="Interview">INTERVIEW</option>
+                      <option value="Service">SERVICE</option>
+                      <option value="Meeting">MEETING</option>
+                      <option value="Training">TRAINING</option>
+                      <option value="Others">OTHERS</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Visitor Information */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Visitor Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Mobile No <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        value={formData.visitors[0]?.mobile || ""}
+                        onChange={(e) => handleInputChange("visitor.mobile", e.target.value)}
+                        placeholder="Enter Mobile No"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.visitors[0]?.fullname || ""}
+                        onChange={(e) => handleInputChange("visitor.fullname", e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Company</label>
+                      <input
+                        type="text"
+                        value={formData.visitors[0]?.company || ""}
+                        onChange={(e) => handleInputChange("visitor.company", e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                      <input
+                        type="email"
+                        value={formData.visitors[0]?.email || ""}
+                        onChange={(e) => handleInputChange("visitor.email", e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Belongings */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Belongings</h3>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    {belongings.length === 0 ? (
+                      <div className="text-center py-8">
+                        <button
+                          onClick={addBelonging}
+                          className="bg-green-500 text-white w-10 h-10 rounded-full flex items-center justify-center hover:bg-green-600 mx-auto"
+                        >
+                          <Plus className="w-5 h-5" />
+                        </button>
+                        <p className="text-gray-500 text-sm mt-2">Click + to add belongings</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="bg-blue-50">
+                              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Action</th>
+                              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Asset Name</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {belongings.map((item) => (
+                              <tr key={item.id} className="border-b border-gray-200">
+                                <td className="px-4 py-2">
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={addBelonging}
+                                      className="bg-green-500 text-white w-6 h-6 rounded flex items-center justify-center hover:bg-green-600"
+                                    >
+                                      +
+                                    </button>
+                                    <button
+                                      onClick={() => removeBelonging(item.id)}
+                                      className="bg-red-500 text-white w-6 h-6 rounded flex items-center justify-center hover:bg-red-600"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-2">
+                                  <input
+                                    type="text"
+                                    value={item.assetName}
+                                    onChange={(e) => updateBelonging(item.id, "assetName", e.target.value)}
+                                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <div className="mt-4 text-sm text-blue-600">
+                          Showing 1 to {belongings.length} of {belongings.length} Entries
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            ))
-          )}
-        </div>
 
-        {/* Right column - Hosts */}
-        <div className="space-y-4">
-          {hosts.map((host) => (
-            <div key={host.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-              <h3 className="font-semibold text-blue-600 mb-1">{host.name}</h3>
-              <p className="text-sm text-gray-600">{host.userId}</p>
-              <p className="text-sm text-gray-600">{host.phone}</p>
-              <p className="text-sm text-gray-600">{host.company}</p>
+              {/* Right side - Photo placeholder */}
+              <div className="lg:col-span-1">
+                <div className="bg-gray-100 rounded-lg p-6 text-center h-64 flex flex-col items-center justify-center">
+                  <div className="w-24 h-24 bg-gray-300 rounded-full mb-4 flex items-center justify-center">
+                    <Camera className="w-8 h-8 text-gray-500" />
+                  </div>
+                  <p className="text-gray-500 text-sm mb-4">NO IMAGE</p>
+                  <button className="bg-green-500 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-green-600">
+                    <Camera className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Check-Out Visitors cube */}
-      <div className="fixed bottom-6 right-6">
-        <div className="bg-red-500 text-white p-4 rounded-lg shadow-lg min-w-[120px] text-center">
-          <div className="text-sm font-medium">Check-Out</div>
-          <div className="text-sm font-medium">Visitors</div>
-          <div className="text-3xl font-bold mt-2">0</div>
+            {/* Form Actions */}
+            <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-200">
+              <button
+                onClick={handleClear}
+                className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                CLEAR
+              </button>
+              <button
+                onClick={handleSave}
+                className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                SAVE
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
