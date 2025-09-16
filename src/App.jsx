@@ -34,6 +34,7 @@ import CheckInCheckOutReport from "./pages/CheckInCheckOutReport"
 import VehicleInvoiceReport from "./pages/VehicleInvoiceReport"
 import FeedbackReport from "./pages/FeedbackReport"
 import PlantType from "./pages/PlantType"
+import VisitorForm from "./pages/VisitorForm"
 
 const AuthGate = ({ children }) => {
   const { isLoading } = useAuth()
@@ -75,6 +76,8 @@ function App() {
             </GuestRoute>
           }
         />
+
+        <Route path="/visitorform" element={<VisitorForm />} />
 
         <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
 
