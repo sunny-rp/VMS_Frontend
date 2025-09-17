@@ -1,164 +1,108 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, Calendar, XCircle } from "lucide-react"
+import { appointmentsAPI } from "../services/api"
 
 const CheckInOut = () => {
-  const [visitorEntryType, setVisitorEntryType] = useState("Check Out")
+  const [visitorEntryType, setVisitorEntryType] = useState("Check In")
   const [visitorEntryCode, setVisitorEntryCode] = useState("")
   const [visitorName, setVisitorName] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
+  const [appointments, setAppointments] = useState([])
+  const [appointmentsLoading, setAppointmentsLoading] = useState(true)
 
-  // Mock check-in/out data
-  const checkInOutData = [
-    {
-      visitorEntryCode: "VSE00021",
-      visitorType: "One Day Pass",
-      visitorName: "Shyamlal",
-      personToVisit: "ARPANA KUMARI ANU",
-      checkedIn: "2025-09-05 15:13:07",
-      checkedInBy: "ARPANA KUMARI ANU",
-      checkedOut: "",
-      checkedOutBy: "",
-    },
-    {
-      visitorEntryCode: "VSE00020",
-      visitorType: "One Day Pass",
-      visitorName: "Kuldeep singh",
-      personToVisit: "ARPANA KUMARI ANU",
-      checkedIn: "2025-09-05 14:59:26",
-      checkedInBy: "ARPANA KUMARI ANU",
-      checkedOut: "",
-      checkedOutBy: "",
-    },
-    {
-      visitorEntryCode: "VSE00019",
-      visitorType: "One Day Pass",
-      visitorName: "Baljeet Singh",
-      personToVisit: "RAJPAL",
-      checkedIn: "2025-09-05 13:56:20",
-      checkedInBy: "RAJPAL",
-      checkedOut: "2025-09-05 14:45:16",
-      checkedOutBy: "RAJPAL",
-    },
-    {
-      visitorEntryCode: "VSE00016",
-      visitorType: "One Day Pass",
-      visitorName: "Arun Parihar",
-      personToVisit: "FURKAN QURESHI",
-      checkedIn: "2025-09-04 12:01:34",
-      checkedInBy: "FURKAN QURESHI",
-      checkedOut: "2025-09-04 16:56:46",
-      checkedOutBy: "FURKAN QURESHI",
-    },
-    {
-      visitorEntryCode: "VSE00018",
-      visitorType: "One Day Pass",
-      visitorName: "Suhail",
-      personToVisit: "FURKAN QURESHI",
-      checkedIn: "2025-09-04 12:52:17",
-      checkedInBy: "FURKAN QURESHI",
-      checkedOut: "2025-09-04 13:58:25",
-      checkedOutBy: "FURKAN QURESHI",
-    },
-    {
-      visitorEntryCode: "VSE00013",
-      visitorType: "One Day Pass",
-      visitorName: "Shivam Pandey",
-      personToVisit: "ARPANA KUMARI ANU",
-      checkedIn: "2025-09-03 16:37:22",
-      checkedInBy: "ARPANA KUMARI ANU",
-      checkedOut: "2025-09-03 16:40:17",
-      checkedOutBy: "ARPANA KUMAR ANU",
-    },
-    {
-      visitorEntryCode: "VSE00012",
-      visitorType: "One Day Pass",
-      visitorName: "Nanhe",
-      personToVisit: "ARPANA KUMARI ANU",
-      checkedIn: "2025-09-03 16:26:37",
-      checkedInBy: "ARPANA KUMARI ANU",
-      checkedOut: "2025-09-03 16:32:08",
-      checkedOutBy: "ARPANA KUMAR ANU",
-    },
-    {
-      visitorEntryCode: "VSE00010",
-      visitorType: "One Day Pass",
-      visitorName: "Sabila Khatun",
-      personToVisit: "ARPANA KUMARI ANU",
-      checkedIn: "2025-09-03 16:19:32",
-      checkedInBy: "ARPANA KUMARI ANU",
-      checkedOut: "2025-09-03 16:20:47",
-      checkedOutBy: "ARPANA KUMAR ANU",
-    },
-    {
-      visitorEntryCode: "VSE00008",
-      visitorType: "One Day Pass",
-      visitorName: "Nanhe",
-      personToVisit: "Adhish Pandit",
-      checkedIn: "2025-09-03 15:56:48",
-      checkedInBy: "Adhish Pandit",
-      checkedOut: "2025-09-03 15:57:16",
-      checkedOutBy: "Adhish Pandit",
-    },
-    {
-      visitorEntryCode: "VSE00005",
-      visitorType: "One Day Pass",
-      visitorName: "Adhish Pandit",
-      personToVisit: "MANISH SATIJA",
-      checkedIn: "2025-09-03 15:33:18",
-      checkedInBy: "MANISH SATIJA",
-      checkedOut: "2025-09-03 15:50:53",
-      checkedOutBy: "Adhish Pandit",
-    },
-    {
-      visitorEntryCode: "VSE00007",
-      visitorType: "One Day Pass",
-      visitorName: "Nanhe",
-      personToVisit: "ARPANA KUMARI ANU",
-      checkedIn: "2025-09-03 15:43:52",
-      checkedInBy: "ARPANA KUMARI ANU",
-      checkedOut: "2025-09-03 15:50:24",
-      checkedOutBy: "ARPANA KUMAR ANU",
-    },
-    {
-      visitorEntryCode: "VSE00006",
-      visitorType: "One Day Pass",
-      visitorName: "Santhosh",
-      personToVisit: "Adhish Pandit",
-      checkedIn: "2025-09-03 15:45:54",
-      checkedInBy: "Adhish Pandit",
-      checkedOut: "2025-09-03 15:48:44",
-      checkedOutBy: "Adhish Pandit",
-    },
-    {
-      visitorEntryCode: "VSE00004",
-      visitorType: "One Day Pass",
-      visitorName: "Prashant",
-      personToVisit: "Adhish Pandit",
-      checkedIn: "2025-09-01 13:05:36",
-      checkedInBy: "Adhish Pandit",
-      checkedOut: "2025-09-01 14:50:34",
-      checkedOutBy: "Adhish Pandit",
-    },
-  ]
+  const fetchAppointments = async () => {
+    try {
+      setAppointmentsLoading(true)
+      const response = await appointmentsAPI.getAll()
+      if (response.success && response.data) {
+        setAppointments(response.data)
+      }
+    } catch (error) {
+      console.error("Failed to fetch appointments:", error)
+      setError("Failed to load appointments data")
+    } finally {
+      setAppointmentsLoading(false)
+    }
+  }
 
-  const filteredData = checkInOutData.filter(
-    (item) =>
-      item.visitorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.visitorEntryCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.personToVisit.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  useEffect(() => {
+    fetchAppointments()
+  }, [])
 
-  const handleCheckInOut = () => {
-    // Handle check-in/out logic
-    console.log("Check In/Out:", { visitorEntryType, visitorEntryCode, visitorName })
+  const filteredData = appointments
+    .filter((appointment) => {
+      if (!appointment.visitors || !Array.isArray(appointment.visitors)) return false
+
+      return appointment.visitors.some(
+        (visitor) =>
+          visitor.fullname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          appointment.appointmentId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          appointment.personToVisit?.fullname?.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+    })
+    .flatMap((appointment) =>
+      appointment.visitors.map((visitor) => ({
+        visitorEntryCode: appointment.appointmentId || "-",
+        visitorName: visitor.fullname || "-",
+        personToVisit: appointment.personToVisit?.fullname || "-",
+        checkedIn: appointment.checkedInTime || "-",
+        checkedInBy: appointment.personToVisit?.fullname || "-", // Same as person to visit as requested
+        checkedOut: appointment.checkedOutTime || "-",
+      })),
+    )
+
+  const handleCheckInOut = async () => {
+    if (!visitorEntryCode.trim()) {
+      setError("Visitor Entry Code is required")
+      return
+    }
+
+    setLoading(true)
+    setError("")
+    setSuccess("")
+
+    try {
+      let response
+      if (visitorEntryType === "Check In") {
+        response = await appointmentsAPI.checkIn(visitorEntryCode.trim(), visitorName.trim() || null)
+      } else {
+        response = await appointmentsAPI.checkOut(visitorEntryCode.trim(), visitorName.trim() || null)
+      }
+
+      setSuccess(`${visitorEntryType} successful for ${visitorEntryCode}`)
+      // Clear form after successful operation
+      setVisitorEntryCode("")
+      setVisitorName("")
+      fetchAppointments()
+    } catch (error) {
+      console.error(`${visitorEntryType} failed:`, error)
+      setError(error.message || `${visitorEntryType} failed. Please try again.`)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleClear = () => {
     setVisitorEntryCode("")
     setVisitorName("")
+    setError("")
+    setSuccess("")
   }
+
+  useEffect(() => {
+    if (error || success) {
+      const timer = setTimeout(() => {
+        setError("")
+        setSuccess("")
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [error, success])
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
@@ -167,6 +111,11 @@ const CheckInOut = () => {
 
         {/* Form Section */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          {error && <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">{error}</div>}
+          {success && (
+            <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg">{success}</div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Visitor Entry Type</label>
@@ -174,6 +123,7 @@ const CheckInOut = () => {
                 value={visitorEntryType}
                 onChange={(e) => setVisitorEntryType(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={loading}
               >
                 <option>Check In</option>
                 <option>Check Out</option>
@@ -190,36 +140,36 @@ const CheckInOut = () => {
                 value={visitorEntryCode}
                 onChange={(e) => setVisitorEntryCode(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={loading}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Visitors / Worker Name</label>
-              <select
+              <label className="block text-sm font-medium text-gray-700 mb-2">Visitor Name (Optional)</label>
+              <input
+                type="text"
+                placeholder="Enter Visitor Name"
                 value={visitorName}
                 onChange={(e) => setVisitorName(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option>Visitors / Worker Name</option>
-                <option>Shyamlal</option>
-                <option>Kuldeep singh</option>
-                <option>Baljeet Singh</option>
-                <option>Arun Parihar</option>
-              </select>
+                disabled={loading}
+              />
             </div>
           </div>
 
           <div className="flex space-x-4">
             <button
               onClick={handleCheckInOut}
-              className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center space-x-2"
+              disabled={loading}
+              className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               <Calendar className="w-4 h-4" />
-              <span>CHECK IN / CHECK OUT</span>
+              <span>{loading ? "Processing..." : "CHECK IN / CHECK OUT"}</span>
             </button>
             <button
               onClick={handleClear}
-              className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center space-x-2"
+              disabled={loading}
+              className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-red-300 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               <XCircle className="w-4 h-4" />
               <span>CLEAR</span>
@@ -243,75 +193,87 @@ const CheckInOut = () => {
 
         {/* Data Table */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Visitor Entry Code
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Visitor Type
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Visitor Name
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Person to Visit
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Checked In
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Checked In By
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Checked Out
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Checked Out By
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredData.map((item, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.visitorEntryCode}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.visitorType}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.visitorName}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.personToVisit}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.checkedIn}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.checkedInBy}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.checkedOut}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.checkedOutBy}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <span className="text-sm text-gray-700">
-                  Showing 1 to {filteredData.length} of {filteredData.length} Entries
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">‹‹</button>
-                <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">‹</button>
-                <button className="px-3 py-1 text-sm bg-blue-500 text-white rounded">1</button>
-                <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">›</button>
-                <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">››</button>
-                <select className="ml-2 text-sm border border-gray-300 rounded px-2 py-1">
-                  <option>25</option>
-                  <option>50</option>
-                  <option>100</option>
-                </select>
-              </div>
+          {appointmentsLoading ? (
+            <div className="p-8 text-center">
+              <div className="text-gray-500">Loading appointments...</div>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Visitor Entry Code
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Visitor Name
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Person to Visit
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Checked In
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Checked In By
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Checked Out
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredData.length > 0 ? (
+                      filteredData.map((item, index) => (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-900">{item.visitorEntryCode}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{item.visitorName}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{item.personToVisit}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {item.checkedIn !== "-" ? new Date(item.checkedIn).toLocaleString() : "-"}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{item.checkedInBy}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {item.checkedOut !== "-" ? new Date(item.checkedOut).toLocaleString() : "-"}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="6" className="px-4 py-8 text-center text-gray-500">
+                          No appointments found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="text-sm text-gray-700">
+                      Showing 1 to {filteredData.length} of {filteredData.length} Entries
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">‹‹</button>
+                    <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">‹</button>
+                    <button className="px-3 py-1 text-sm bg-blue-500 text-white rounded">1</button>
+                    <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">›</button>
+                    <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">››</button>
+                    <select className="ml-2 text-sm border border-gray-300 rounded px-2 py-1">
+                      <option>25</option>
+                      <option>50</option>
+                      <option>100</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -322,7 +284,9 @@ const CheckInOut = () => {
             <div className="text-white text-center">
               <div className="text-xs font-medium">Check-In</div>
               <div className="text-xs font-medium">Visitors</div>
-              <div className="text-2xl font-bold">0</div>
+              <div className="text-2xl font-bold">
+                {filteredData.filter((item) => item.checkedIn !== "-" && item.checkedOut === "-").length}
+              </div>
             </div>
           </div>
         </div>

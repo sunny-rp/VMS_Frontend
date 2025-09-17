@@ -76,7 +76,9 @@ const Visitors = () => {
 
       const appointmentsData = Array.isArray(appointmentsResponse.data) ? appointmentsResponse.data : []
 
-      const transformedVisitors = appointmentsData.map((appointment, index) => ({
+      const activeAppointments = appointmentsData.filter((appointment) => appointment.isAppointmentActive === true)
+
+      const transformedVisitors = activeAppointments.map((appointment, index) => ({
         id: appointment.appointmentId || appointment._id || `APP${index + 1}`,
         name: appointment.visitors?.[0]?.fullname?.toUpperCase() || "UNKNOWN VISITOR",
         mobile: appointment.visitors?.[0]?.mobile || "N/A",
@@ -98,7 +100,7 @@ const Visitors = () => {
         areaToVisit: appointment.areaToVisit,
       }))
 
-      setAppointments(appointmentsData)
+      setAppointments(activeAppointments)
       setVisitors(transformedVisitors)
     } catch (error) {
       console.error("[v0] Error loading appointments:", error)

@@ -476,4 +476,24 @@ export const appointmentsAPI = {
       method: "DELETE",
     })
   },
+  checkIn: async (appointmentId, qrData = null) => {
+    const requestData = { appointmentId }
+    if (qrData) {
+      requestData.qrData = qrData
+    }
+    return await apiClient.request(`/user/appointments/checkin-visitors/${appointmentId}`, {
+      method: "POST",
+      body: JSON.stringify(requestData),
+    })
+  },
+  checkOut: async (appointmentId, qrData = null) => {
+    const requestData = { appointmentId }
+    if (qrData) {
+      requestData.qrData = qrData
+    }
+    return await apiClient.request(`/user/appointments/checkout-visitors/${appointmentId}`, {
+      method: "POST",
+      body: JSON.stringify(requestData),
+    })
+  },
 }
