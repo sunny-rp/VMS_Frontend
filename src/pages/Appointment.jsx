@@ -1,58 +1,62 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, Calendar, Mail } from "lucide-react"
+import { appointmentsAPI } from "../services/api"
 
 const Appointment = () => {
   const [viewMode, setViewMode] = useState("table")
   const [searchTerm, setSearchTerm] = useState("")
+  const [appointments, setAppointments] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
-  // Mock appointment data
-  const appointments = [
-    {
-      id: 1,
-      hostName: "Adhish Pandit",
-      visitorEntryCode: "VSE00008",
-      visitorName: "Nanhe",
-      mailId: "nanhekumar739@gmail.com",
-      mobileNo: "9310583383",
-      validFrom: "9/3/2025, 3:53:37 PM",
-      validTo: "9/3/2025, 11:59:59 PM",
-      status: "Approved",
-      sharedMeal: false,
-    },
-    {
-      id: 2,
-      hostName: "Adhish Pandit",
-      visitorEntryCode: "VSE00006",
-      visitorName: "Santhosh",
-      mailId: "santhoshraj.issm@gmail.com",
-      mobileNo: "9176149959",
-      validFrom: "9/3/2025, 3:41:10 PM",
-      validTo: "9/3/2025, 11:59:59 PM",
-      status: "Approved",
-      sharedMeal: false,
-    },
-    {
-      id: 3,
-      hostName: "Adhish Pandit",
-      visitorEntryCode: "VSE00004",
-      visitorName: "Prashant",
-      mailId: "",
-      mobileNo: "9643491014",
-      validFrom: "9/1/2025, 12:11:20 PM",
-      validTo: "9/1/2025, 11:59:59 PM",
-      status: "Approved",
-      sharedMeal: false,
-    },
-  ]
+  useEffect(() => {
+    fetchAppointments()
+  }, [])
 
-  const filteredAppointments = appointments.filter(
-    (appointment) =>
-      appointment.visitorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      appointment.hostName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      appointment.visitorEntryCode.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  const fetchAppointments = async () => {
+    try {
+      setLoading(true)
+      const response = await appointmentsAPI.getAll()
+      setAppointments(response.data || [])
+      setError("")
+    } catch (err) {
+      console.error("Error fetching appointments:", err)
+      setError("Failed to fetch appointments")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredAppointments = appointments.filter((appointment) => {
+    const visitorName = appointment.visitors?.[0]?.fullname || ""
+    const hostName = appointment.personToVisit?.fullname || ""
+    const entryCode = appointment.appointmentId || ""
+
+    return (
+      visitorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      hostName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      entryCode.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  })
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "-"
+    try {
+      return new Date(dateString).toLocaleString()
+    } catch {
+      return dateString
+    }
+  }
+
+  const getStatusDisplay = (status) => {
+    return status === "Approved" ? "active" : "inactive"
+  }
+
+  const getStatusColor = (status) => {
+    return status === "Approved" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+  }
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
@@ -102,93 +106,113 @@ const Appointment = () => {
 
       {viewMode === "table" ? (
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Action
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Host Name
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Visitor Entry Code
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Visitor Name
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Mail ID
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Mobile No
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Valid From
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Valid To
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Shared Meal to Visitor/Guest
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredAppointments.map((appointment) => (
-                  <tr key={appointment.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <div className="flex space-x-2">
-                        <button className="p-1 bg-green-500 text-white rounded hover:bg-green-600">
-                          <Mail className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{appointment.hostName}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{appointment.visitorEntryCode}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{appointment.visitorName}</td>
-                    <td className="px-4 py-3 text-sm text-blue-600">{appointment.mailId}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{appointment.mobileNo}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{appointment.validFrom}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{appointment.validTo}</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                        {appointment.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{appointment.sharedMeal ? "Yes" : "No"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <span className="text-sm text-gray-700">
-                  Showing 1 to {filteredAppointments.length} of {filteredAppointments.length} Entries
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">‹‹</button>
-                <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">‹</button>
-                <button className="px-3 py-1 text-sm bg-blue-500 text-white rounded">1</button>
-                <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">›</button>
-                <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">››</button>
-                <select className="ml-2 text-sm border border-gray-300 rounded px-2 py-1">
-                  <option>10</option>
-                  <option>25</option>
-                  <option>50</option>
-                </select>
-              </div>
+          {loading ? (
+            <div className="p-8 text-center">
+              <div className="text-gray-500">Loading appointments...</div>
             </div>
-          </div>
+          ) : error ? (
+            <div className="p-8 text-center">
+              <div className="text-red-500">{error}</div>
+              <button
+                onClick={fetchAppointments}
+                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Action
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Host Name
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Visitor Entry Code
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Visitor Name
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Mail ID
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Mobile No
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Valid From
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Valid To
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredAppointments.map((appointment, index) => (
+                      <tr key={appointment._id || index} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div className="flex space-x-2">
+                            <button className="p-1 bg-green-500 text-white rounded hover:bg-green-600">
+                              <Mail className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          {appointment.personToVisit?.fullname || "-"}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{appointment.appointmentId || "-"}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          {appointment.visitors?.[0]?.fullname.toUpperCase() || "-"}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-blue-600">{appointment.visitors?.[0]?.email || "-"}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{appointment.visitors?.[0]?.mobile || "-"}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{formatDate(appointment.checkedInTime)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{formatDate(appointment.checkedOutTime)}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(appointment.appointmentStatus)}`}
+                          >
+                            {getStatusDisplay(appointment.appointmentStatus)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="text-sm text-gray-700">
+                      Showing 1 to {filteredAppointments.length} of {filteredAppointments.length} Entries
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">‹‹</button>
+                    <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">‹</button>
+                    <button className="px-3 py-1 text-sm bg-blue-500 text-white rounded">1</button>
+                    <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">›</button>
+                    <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">››</button>
+                    <select className="ml-2 text-sm border border-gray-300 rounded px-2 py-1">
+                      <option>10</option>
+                      <option>25</option>
+                      <option>50</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow-sm p-8 text-center">
