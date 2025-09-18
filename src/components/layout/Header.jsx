@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useAuth } from "../../contexts/AuthContext"
 import { Search, ChevronDown, Menu, LogOut, User } from "lucide-react"
+import { toast } from "sonner"
 
 const Header = ({ onMenuClick }) => {
   const { user, logout } = useAuth()
@@ -86,7 +87,11 @@ const Header = ({ onMenuClick }) => {
 
   // Handle user logout and close dropdown
   const handleLogout = () => {
-    logout()
+    toast.promise(logout(), {
+      loading: "Logging out...",
+      success: "Logged out successfully!",
+      error: "Failed to logout",
+    })
     setShowUserMenu(false)
   }
 

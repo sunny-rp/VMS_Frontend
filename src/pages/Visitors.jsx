@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { appointmentsAPI, usersAPI, plantsAPI, departmentsAPI, areasAPI } from "../services/api"
 import { Plus, Search, X, Calendar, Camera } from "lucide-react"
+import { toast } from "sonner"
 
 const Visitors = () => {
   const [visitors, setVisitors] = useState([])
@@ -180,17 +181,17 @@ const Visitors = () => {
 
       if (response.success) {
         console.log("[v0] Appointment created successfully:", response)
-        alert("Appointment created successfully!")
+        toast.success("Appointment created successfully!")
         setShowForm(false)
         handleClear()
         loadData() // Reload the appointments list
       } else {
         console.error("[v0] Failed to create appointment:", response)
-        alert("Failed to create appointment. Please try again.")
+        toast.error("Failed to create appointment. Please try again.")
       }
     } catch (error) {
       console.error("[v0] Error creating appointment:", error)
-      alert("Error creating appointment: " + (error.message || "Unknown error"))
+      toast.error("Error creating appointment: " + (error.message || "Unknown error"))
     }
   }
 

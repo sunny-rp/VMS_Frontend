@@ -465,6 +465,9 @@ export const appointmentsAPI = {
   getById: async (appointmentId) => {
     return await apiClient.request(`/user/appointments/${appointmentId}`)
   },
+  fetchVisitorByAptId: async (appointmentId) => {
+    return await apiClient.request(`/user/fetch-visitor-by-aptid/${appointmentId}`)
+  },
   update: async (appointmentId, updateData) => {
     return await apiClient.request(`/user/appointments/${appointmentId}`, {
       method: "PUT",

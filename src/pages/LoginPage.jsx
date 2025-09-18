@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useAuth } from "../contexts/AuthContext"
 import { Eye, EyeOff, LogIn } from "lucide-react"
 import { useLocation, useNavigate } from "react-router-dom"
+import { toast } from "sonner"
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({ emailOrPhone: "", password: "" })
@@ -63,8 +64,15 @@ const LoginPage = () => {
 
     if (!result.success) {
       setError(result.error)
+      toast.error("Login failed", {
+        description: result.error,
+      })
       return
     }
+
+    toast.success("Login successful!", {
+      description: `Welcome back, ${result.data?.name || "User"}!`,
+    })
 
     const from = location.state?.from?.pathname || "/dashboard"
     navigate(from, { replace: true })
@@ -178,7 +186,12 @@ const LoginPage = () => {
             </button>
           </form>
 
-          
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+            <p className="text-xs text-gray-600 font-medium mb-2">Demo Credentials:</p>
+            <p className="text-xs text-gray-500">Email: demo@example.com</p>
+            <p className="text-xs text-gray-500">Mobile: 9756934671</p>
+            <p className="text-xs text-gray-500">Password: password123</p>
+          </div>
         </div>
       </div>
     </div>

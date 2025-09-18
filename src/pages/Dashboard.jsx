@@ -1,9 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { Users, UserCheck, UserX, RotateCcw, Pause, Plus } from "lucide-react"
 
 const Dashboard = () => {
+  const navigate = useNavigate()
+
   const [stats, setStats] = useState({
     oneDayPass: 0,
     extendedPass: 0,
@@ -26,6 +29,10 @@ const Dashboard = () => {
       visitorsInside: 0,
     })
   }, [])
+
+  const handleCreateAppointment = () => {
+    navigate("/visitor")
+  }
 
   const statCards = [
     {
@@ -112,6 +119,7 @@ const Dashboard = () => {
           <div
             key={stat.name}
             className={`card p-4 ${stat.bgColor} ${stat.isAction ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}
+            onClick={stat.isAction ? handleCreateAppointment : undefined}
           >
             <div className="flex items-center">
               <div className="flex-shrink-0">

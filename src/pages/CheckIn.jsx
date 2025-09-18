@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { visitorsAPI } from "../services/api"
 import { QrCode, UserPlus, UserMinus, Search, Camera, X, Check, Clock, User, Building, Phone } from "lucide-react"
+import { toast } from "sonner"
 
 const CheckIn = () => {
   const [activeTab, setActiveTab] = useState("scan") // scan, manual, checkout
@@ -65,12 +66,12 @@ const CheckIn = () => {
         setShowQrModal(false)
         loadActiveVisitors()
         loadRecentActivity()
-        alert("Visitor checked out successfully!")
+        toast.success("Visitor checked out successfully!")
       } else {
-        alert("Invalid QR code format")
+        toast.error("Invalid QR code format")
       }
     } catch (error) {
-      alert("Error processing QR code: " + error.message)
+      toast.error("Error processing QR code: " + error.message)
     } finally {
       setLoading(false)
     }
@@ -80,7 +81,7 @@ const CheckIn = () => {
     e.preventDefault()
 
     if (!checkInForm.name || !checkInForm.mobile) {
-      alert("Please fill in required fields")
+      toast.error("Please fill in required fields")
       return
     }
 
@@ -97,9 +98,9 @@ const CheckIn = () => {
       })
       loadActiveVisitors()
       loadRecentActivity()
-      alert("Visitor checked in successfully!")
+      toast.success("Visitor checked in successfully!")
     } catch (error) {
-      alert("Error checking in visitor: " + error.message)
+      toast.error("Error checking in visitor: " + error.message)
     } finally {
       setLoading(false)
     }
@@ -111,8 +112,9 @@ const CheckIn = () => {
       await visitorsAPI.checkOut(visitorId)
       loadActiveVisitors()
       loadRecentActivity()
+      toast.success("Visitor checked out successfully!")
     } catch (error) {
-      alert("Error checking out visitor: " + error.message)
+      toast.error("Error checking out visitor: " + error.message)
     } finally {
       setLoading(false)
     }

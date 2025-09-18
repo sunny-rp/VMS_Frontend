@@ -8,12 +8,57 @@ const CheckInOut = () => {
   const [visitorEntryType, setVisitorEntryType] = useState("Check In")
   const [visitorEntryCode, setVisitorEntryCode] = useState("")
   const [visitorName, setVisitorName] = useState("")
+  const [isVisitorNameFetched, setIsVisitorNameFetched] = useState(false)
+  const [fetchingVisitor, setFetchingVisitor] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [appointments, setAppointments] = useState([])
   const [appointmentsLoading, setAppointmentsLoading] = useState(true)
+
+  const fetchVisitorByCode = async (appointmentId) => {
+    if (!appointmentId.trim()) {
+      setVisitorName("")
+      setIsVisitorNameFetched(false)
+      return
+    }
+
+    setFetchingVisitor(true)
+    try {
+      const response = await appointmentsAPI.fetchVisitorByAptId(appointmentId.trim())
+
+      if (response.success && response.data) {
+        const visitor = response.data.visitorDetails?.[0] || response.data
+        const fetchedVisitorName = visitor?.fullname || visitor?.name || visitor?.visitorName || ""
+
+        if (fetchedVisitorName) {
+          setVisitorName(fetchedVisitorName)
+          setIsVisitorNameFetched(true) // disable field once fetched
+        } else {
+          setVisitorName("")
+          setIsVisitorNameFetched(false)
+        }
+      } else {
+        setVisitorName("")
+        setIsVisitorNameFetched(false)
+      }
+    } catch (error) {
+      console.error("Failed to fetch visitor:", error)
+      setVisitorName("")
+      setIsVisitorNameFetched(false)
+    } finally {
+      setFetchingVisitor(false)
+    }
+  }
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchVisitorByCode(visitorEntryCode)
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [visitorEntryCode])
 
   const fetchAppointments = async () => {
     try {
@@ -69,15 +114,15 @@ const CheckInOut = () => {
     try {
       let response
       if (visitorEntryType === "Check In") {
-        response = await appointmentsAPI.checkIn(visitorEntryCode.trim(), visitorName.trim() || null)
+        response = await appointmentsAPI.checkIn(visitorEntryCode.trim())
       } else {
-        response = await appointmentsAPI.checkOut(visitorEntryCode.trim(), visitorName.trim() || null)
+        response = await appointmentsAPI.checkOut(visitorEntryCode.trim())
       }
 
       setSuccess(`${visitorEntryType} successful for ${visitorEntryCode}`)
-      // Clear form after successful operation
       setVisitorEntryCode("")
       setVisitorName("")
+      setIsVisitorNameFetched(false)
       fetchAppointments()
     } catch (error) {
       console.error(`${visitorEntryType} failed:`, error)
@@ -90,6 +135,7 @@ const CheckInOut = () => {
   const handleClear = () => {
     setVisitorEntryCode("")
     setVisitorName("")
+    setIsVisitorNameFetched(false)
     setError("")
     setSuccess("")
   }
@@ -145,14 +191,18 @@ const CheckInOut = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Visitor Name (Optional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Visitor Name {fetchingVisitor && <span className="text-blue-500">(Fetching...)</span>}
+              </label>
               <input
                 type="text"
-                placeholder="Enter Visitor Name"
-                value={visitorName}
+                placeholder="Visitor Name"
+                value={visitorName.toUpperCase()}
                 onChange={(e) => setVisitorName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={loading}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  isVisitorNameFetched ? "bg-gray-100 cursor-not-allowed" : ""
+                }`}
+                disabled={loading || isVisitorNameFetched}
               />
             </div>
           </div>

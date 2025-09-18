@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { usersAPI } from "../services/api"
 import { useAuth } from "../contexts/AuthContext"
 import { Search, Plus, Edit, Trash2, Shield, User, Phone, Building, CheckCircle, XCircle, X, Save } from "lucide-react"
+import { toast } from "sonner"
 
 const Users = () => {
   const { hasRole } = useAuth()
@@ -71,20 +72,22 @@ const Users = () => {
     e.preventDefault()
 
     if (!formData.name || !formData.mobile) {
-      alert("Please fill in required fields")
+      toast.error("Please fill in required fields")
       return
     }
 
     try {
       if (editingUser) {
         await usersAPI.update(editingUser.id, formData)
+        toast.success("User updated successfully!")
       } else {
         await usersAPI.create(formData)
+        toast.success("User created successfully!")
       }
       setShowModal(false)
       loadUsers()
     } catch (error) {
-      alert("Error saving user: " + error.message)
+      toast.error("Error saving user: " + error.message)
     }
   }
 
@@ -93,9 +96,10 @@ const Users = () => {
 
     try {
       await usersAPI.delete(userId)
+      toast.success("User deleted successfully!")
       loadUsers()
     } catch (error) {
-      alert("Error deleting user: " + error.message)
+      toast.error("Error deleting user: " + error.message)
     }
   }
 
@@ -103,9 +107,10 @@ const Users = () => {
     try {
       const newStatus = currentStatus === "active" ? "inactive" : "active"
       await usersAPI.update(userId, { status: newStatus })
+      toast.success(`User ${newStatus === "active" ? "activated" : "deactivated"} successfully!`)
       loadUsers()
     } catch (error) {
-      alert("Error updating user status: " + error.message)
+      toast.error("Error updating user status: " + error.message)
     }
   }
 

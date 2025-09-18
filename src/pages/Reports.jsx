@@ -14,6 +14,7 @@ import {
   FileText,
   Search,
 } from "lucide-react"
+import { toast } from "sonner"
 
 const Reports = () => {
   const [dateRange, setDateRange] = useState({
@@ -128,7 +129,7 @@ const Reports = () => {
     // Simulate export functionality
     const data = reportType === "detailed" ? visitors : analytics
     console.log(`Exporting ${format.toUpperCase()} report:`, data)
-    alert(`${format.toUpperCase()} report exported successfully!`)
+    toast.success(`${format.toUpperCase()} report exported successfully!`)
   }
 
   const formatTime = (timeString) => {
