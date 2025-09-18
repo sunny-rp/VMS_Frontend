@@ -50,10 +50,11 @@ export default function Role() {
     setError("")
     try {
       setLoading(true)
-      if (editingRole) {
-        // Placeholder until update endpoint is wired
-        console.log("Update not implemented yet")
-        setError("Update functionality not available")
+      if (editingRole?._id) {
+        // ✅ PATCH /user/roles/edit-role/:roleId
+        await rolesAPI.update(editingRole._id, { roleName: formData.roleName })
+        await fetchRoles()
+        resetForm()
       } else {
         await rolesAPI.create({ roleName: formData.roleName })
         await fetchRoles()

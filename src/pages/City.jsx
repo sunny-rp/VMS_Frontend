@@ -130,9 +130,11 @@ const City = () => {
         country: formData.countryId, // send ID
         state: formData.stateId,     // send ID
       }
-      if (editingCity) {
-        // TODO: call update endpoint when ready
-        console.log("Update city:", payload)
+
+      if (editingCity?._id) {
+        // ✅ PATCH /user/cities/edit-city/:cityId
+        await citiesAPI.update(editingCity._id, payload)
+        await fetchCities()
       } else {
         await citiesAPI.create(payload)
         await fetchCities()

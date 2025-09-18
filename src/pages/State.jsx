@@ -1,3 +1,4 @@
+// src/pages/State.jsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -60,7 +61,7 @@ const State = () => {
   const fetchCountries = async () => {
     try {
       const res = await countriesAPI.getAll()
-      // Your Countries API: { statusCode, data:[{_id, countryName, ...}], ... }
+      // Countries API: { statusCode, data:[{_id, countryName, ...}], ... }
       const list = Array.isArray(res?.data) ? res.data : []
       setCountries(list)
       if (!Array.isArray(res?.data)) {
@@ -76,14 +77,17 @@ const State = () => {
     setError("")
     try {
       setLoading(true)
-      if (editingState) {
-        // TODO: wire update endpoint
-        console.log("Update not implemented yet")
+      const payload = {
+        stateName: formData.stateName,
+        country: formData.countryId, // backend expects the id here
+      }
+
+      if (editingState?._id) {
+        // ✅ PATCH /user/states/edit-state/:stateId
+        await statesAPI.update(editingState._id, payload)
+        await fetchStates()
       } else {
-        await statesAPI.create({
-          stateName: formData.stateName,
-          country: formData.countryId, // send the ID
-        })
+        await statesAPI.create(payload)
         await fetchStates()
       }
       resetForm()
@@ -115,6 +119,7 @@ const State = () => {
   }
 
   const handleDelete = (id) => {
+    // local remove placeholder (wire real delete when needed)
     setStates((prev) => prev.filter((s) => (s?._id || s?.id) !== id))
   }
 
@@ -124,11 +129,9 @@ const State = () => {
     return c?.countryName || "-"
   }
   const getDisplayCountryName = (countryField) => {
-    // object with countryName?
     if (countryField && typeof countryField === "object") {
       return countryField.countryName || "-"
     }
-    // id string
     if (typeof countryField === "string") {
       return getCountryNameById(countryField)
     }

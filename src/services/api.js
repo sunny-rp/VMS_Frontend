@@ -315,6 +315,17 @@ export const rolesAPI = {
   getAll: async () => {
     return await apiClient.request("/user/roles/fetch-roles")
   },
+  update: async (roleId, roleData) => {
+    return await apiClient.request(`/user/roles/edit-role/${roleId}`, {
+      method: "PATCH",
+      body: JSON.stringify(roleData),
+    })
+  },
+  delete: async (roleId) => {
+    return await apiClient.request(`/user/roles/delete-role/${roleId}`, {
+      method: "DELETE",
+    })
+  },
 }
 
 export const companiesAPI = {
@@ -327,7 +338,26 @@ export const companiesAPI = {
   getAll: async () => {
     return await apiClient.request("/user/companies/fetch-companies")
   },
+  update: async (companyData) => {
+    return await apiClient.request("/user/companies/edit-company", {
+      method: "PUT",
+      body: JSON.stringify(companyData),
+    })
+  },
+  changeStatus: async (statusData) => {
+    return await apiClient.request("/user/companies/change-company-status", {
+      method: "PUT",
+      body: JSON.stringify(statusData),
+    })
+  },
+  delete: async (companyId) => {
+    return await apiClient.request(`/user/companies/delete-company/${companyId}`, {
+      method: "DELETE",
+    })
+  },
 }
+
+// services/api.js
 
 export const countriesAPI = {
   create: async (countryData) => {
@@ -336,10 +366,27 @@ export const countriesAPI = {
       body: JSON.stringify(countryData),
     })
   },
+
   getAll: async () => {
     return await apiClient.request("/user/countries/fetch-countries")
   },
+
+  // ⬇️ Use PATCH with :countryId path (backend expectation)
+  update: async (countryId, countryData) => {
+    return await apiClient.request(`/user/countries/edit-country/${countryId}`, {
+      method: "PATCH",
+      body: JSON.stringify(countryData),
+    })
+  },
+
+  delete: async (countryId) => {
+    return await apiClient.request(`/user/countries/delete-country/${countryId}`, {
+      method: "DELETE",
+    })
+  },
 }
+
+
 
 export const statesAPI = {
   create: async (stateData) => {
@@ -350,6 +397,17 @@ export const statesAPI = {
   },
   getAll: async () => {
     return await apiClient.request("/user/states/fetch-states")
+  },
+  update: async (stateId, stateData) => {
+    return await apiClient.request(`/user/states/edit-state/${stateId}`, {
+      method: "PATCH",
+      body: JSON.stringify(stateData),
+    })
+  },
+  delete: async (stateId) => {
+    return await apiClient.request(`/user/states/delete-state/${stateId}`, {
+      method: "DELETE",
+    })
   },
 }
 
@@ -363,6 +421,17 @@ export const citiesAPI = {
   getAll: async () => {
     return await apiClient.request("/user/cities/fetch-cities")
   },
+  update: async (cityId, cityData) => {
+    return await apiClient.request(`/user/cities/edit-city/${cityId}`, {
+      method: "PATCH",
+      body: JSON.stringify(cityData),
+    })
+  },
+  delete: async (cityId) => {
+    return await apiClient.request(`/user/cities/delete-city/${cityId}`, {
+      method: "DELETE",
+    })
+  },
 }
 
 export const plantTypesAPI = {
@@ -375,14 +444,14 @@ export const plantTypesAPI = {
   getAll: async () => {
     return await apiClient.request("/user/plant-types/fetch-plant-types")
   },
-  update: async (id, plantTypeData) => {
-    return await apiClient.request(`/user/plant-types/update-plant-type/${id}`, {
+  update: async (plantTypeId, plantTypeData) => {
+    return await apiClient.request(`/user/plant-types/edit-plant-type/${plantTypeId}`, {
       method: "PUT",
       body: JSON.stringify(plantTypeData),
     })
   },
-  delete: async (id) => {
-    return await apiClient.request(`/user/plant-types/delete-plant-type/${id}`, {
+  delete: async (plantTypeId) => {
+    return await apiClient.request(`/user/plant-types/delete-plant-type/${plantTypeId}`, {
       method: "DELETE",
     })
   },
@@ -398,6 +467,17 @@ export const plantsAPI = {
   getAll: async () => {
     return await apiClient.request("/user/plants/fetch-plants")
   },
+  update: async (plantId, plantData) => {
+    return await apiClient.request(`/user/plants/edit-plant/${plantId}`, {
+      method: "PUT",
+      body: JSON.stringify(plantData),
+    })
+  },
+  delete: async (plantId) => {
+    return await apiClient.request(`/user/plants/delete-plant/${plantId}`, {
+      method: "DELETE",
+    })
+  },
 }
 
 export const departmentsAPI = {
@@ -409,6 +489,17 @@ export const departmentsAPI = {
   },
   getAll: async () => {
     return await apiClient.request("/user/departments/fetch-departments")
+  },
+  update: async (departmentId, departmentData) => {
+    return await apiClient.request(`/user/departments/edit-department/${departmentId}`, {
+      method: "PUT",
+      body: JSON.stringify(departmentData),
+    })
+  },
+  delete: async (departmentId) => {
+    return await apiClient.request(`/user/departments/delete-department/${departmentId}`, {
+      method: "DELETE",
+    })
   },
 }
 
@@ -422,6 +513,17 @@ export const gatesAPI = {
   getAll: async () => {
     return await apiClient.request("/user/gates/fetch-gates")
   },
+  update: async (gateId, gateData) => {
+    return await apiClient.request(`/user/gates/edit-gate/${gateId}`, {
+      method: "PUT",
+      body: JSON.stringify(gateData),
+    })
+  },
+  delete: async (gateId) => {
+    return await apiClient.request(`/user/gates/delete-gate/${gateId}`, {
+      method: "DELETE",
+    })
+  },
 }
 
 export const areasAPI = {
@@ -434,14 +536,14 @@ export const areasAPI = {
   getAll: async () => {
     return await apiClient.request("/user/areas/fetch-areas")
   },
-  update: async (id, areaData) => {
-    return await apiClient.request(`/user/areas/update-area/${id}`, {
+  update: async (areaId, areaData) => {
+    return await apiClient.request(`/user/areas/edit-area/${areaId}`, {
       method: "PUT",
       body: JSON.stringify(areaData),
     })
   },
-  delete: async (id) => {
-    return await apiClient.request(`/user/areas/delete-area/${id}`, {
+  delete: async (areaId) => {
+    return await apiClient.request(`/user/areas/delete-area/${areaId}`, {
       method: "DELETE",
     })
   },

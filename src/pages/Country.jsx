@@ -1,8 +1,78 @@
+// src/pages/Country.jsx
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Search, Edit, Trash2, Eye } from "lucide-react"
+import { Plus, Search, Edit, Trash2, Eye, X, AlertTriangle } from "lucide-react"
 import { countriesAPI } from "../services/api"
+
+// ---- Tiny toast (no deps)
+const Toast = ({ toast, onClose }) => {
+  if (!toast?.visible) return null
+  return (
+    <div className="fixed top-4 right-4 z-[100]">
+      <div
+        className={`px-4 py-3 rounded shadow text-white ${
+          toast.type === "error" ? "bg-red-600" : "bg-green-600"
+        }`}
+        role="status"
+        aria-live="polite"
+      >
+        <div className="flex items-start gap-3">
+          <span className="text-sm">{toast.message}</span>
+          <button onClick={onClose} className="opacity-80 hover:opacity-100">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---- Confirm modal with caution
+const ConfirmModal = ({ open, title, message, onConfirm, onCancel, busy }) => {
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={busy ? undefined : onCancel} />
+      <div className="relative bg-white w-full max-w-md rounded-lg shadow-lg p-6 z-[95]">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+          <button onClick={onCancel} disabled={busy} className="text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Caution strip */}
+        <div className="flex items-start gap-2 rounded-md border border-yellow-300 bg-yellow-50 p-3 mb-4">
+          <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
+          <p className="text-sm text-yellow-800 font-medium">
+            Caution: If you delete this country, your <span className="underline">entire master data</span> linked to it
+            will also be deleted.
+          </p>
+        </div>
+
+        <p className="text-sm text-gray-600 mb-6">{message}</p>
+
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            className="px-4 py-2 rounded-md border text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            No
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {busy ? "Deleting..." : "Yes, Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const Country = () => {
   const [view, setView] = useState("list") // 'list' or 'form'
@@ -13,17 +83,43 @@ const Country = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
+  // delete modal state
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [targetCountry, setTargetCountry] = useState({ id: "", name: "" })
+  const [deleting, setDeleting] = useState(false)
+
+  // toast
+  const [toast, setToast] = useState({ visible: false, type: "success", message: "" })
+  const showToast = (message, type = "success") => {
+    setToast({ visible: true, type, message })
+    setTimeout(() => setToast((t) => ({ ...t, visible: false })), 3000)
+  }
+
   useEffect(() => {
     fetchCountries()
   }, [])
+
+  // --- URL helpers (?_id) used for both edit + delete flows
+  const setIdQuery = (id) => {
+    try {
+      const url = new URL(window.location.href)
+      url.searchParams.set("_id", id)
+      window.history.replaceState({}, "", url.toString())
+    } catch {}
+  }
+  const clearIdQuery = () => {
+    try {
+      const url = new URL(window.location.href)
+      url.searchParams.delete("_id")
+      window.history.replaceState({}, "", url.toString())
+    } catch {}
+  }
 
   const fetchCountries = async () => {
     try {
       setLoading(true)
       setError("")
       const response = await countriesAPI.getAll()
-      // API shape:
-      // { statusCode: 200, data: [ { _id, countryName, isCountryActive, createdAt, updatedAt } ], ... }
       const list = Array.isArray(response?.data) ? response.data : []
       setCountries(list)
       if (!Array.isArray(response?.data)) {
@@ -32,38 +128,52 @@ const Country = () => {
       }
     } catch (err) {
       console.error("Error fetching countries:", err)
-      setCountries([]) // keep it an array so .filter/map are safe
+      setCountries([])
       setError(err?.message || "Failed to fetch countries")
     } finally {
       setLoading(false)
     }
   }
 
+  // ---------- CREATE / UPDATE ----------
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
       setLoading(true)
       setError("")
-      if (editingCountry) {
-        // Local update demo (replace with your PUT endpoint when ready)
-        setCountries((prev) =>
-          prev.map((c) =>
-            c._id === editingCountry._id
-              ? { ...c, countryName: formData.countryName, updatedAt: new Date().toISOString() }
-              : c
-          )
-        )
+      if (editingCountry?._id) {
+        // ✅ integrate edit API
+        await countriesAPI.update(editingCountry._id, { countryName: formData.countryName })
+        await fetchCountries()
+        showToast("Country updated successfully", "success")
       } else {
         await countriesAPI.create({ countryName: formData.countryName })
         await fetchCountries()
+        showToast("Country created successfully", "success")
       }
       resetForm()
     } catch (err) {
       console.error("Error saving country:", err)
       setError(err?.message || "Failed to save country")
+      showToast(err?.message || "Failed to save country", "error")
     } finally {
       setLoading(false)
     }
+  }
+
+  const startCreate = () => {
+    clearIdQuery()
+    setEditingCountry(null)
+    setFormData({ countryName: "" })
+    setView("form")
+  }
+
+  const startEdit = (country) => {
+    // ✅ open form + prefill + reflect id in URL
+    setEditingCountry(country)
+    setFormData({ countryName: country?.countryName ?? "" })
+    setView("form")
+    if (country?._id) setIdQuery(country._id)
   }
 
   const resetForm = () => {
@@ -71,19 +181,45 @@ const Country = () => {
     setEditingCountry(null)
     setView("list")
     setError("")
+    clearIdQuery() // remove ?_id on cancel/save
   }
 
-  const handleEdit = (country) => {
-    setEditingCountry(country)
-    setFormData({ countryName: country?.countryName ?? "" })
-    setView("form")
+  // ---------- DELETE ----------
+  const askDelete = (country) => {
+    const id = country?._id || ""
+    const name = (country?.countryName || "COUNTRY").toUpperCase()
+    setTargetCountry({ id, name })
+    setConfirmOpen(true)
+    if (id) setIdQuery(id) // reflect id in URL during delete confirm
   }
 
-  const handleDelete = (id) => {
-    // Placeholder (wire to API when available)
-    setCountries((prev) => prev.filter((c) => c._id !== id))
+  const confirmDelete = async () => {
+    if (!targetCountry.id) return
+    setDeleting(true)
+    try {
+      await countriesAPI.delete(targetCountry.id) // DELETE /user/countries/delete-country/:countryId
+      setConfirmOpen(false)
+      setTargetCountry({ id: "", name: "" })
+      clearIdQuery()
+      await fetchCountries()
+      showToast("Country deleted successfully", "success")
+      // If you were editing the same id, reset the form view too:
+      if (editingCountry?._id === targetCountry.id) resetForm()
+    } catch (err) {
+      console.error("Delete failed:", err)
+      showToast(err?.message || "Failed to delete country", "error")
+    } finally {
+      setDeleting(false)
+    }
   }
 
+  const cancelDelete = () => {
+    if (deleting) return
+    setConfirmOpen(false)
+    clearIdQuery()
+  }
+
+  // ---------- VIEW HELPERS ----------
   const formatDateTime = (iso) => {
     if (!iso) return "-"
     try {
@@ -99,9 +235,12 @@ const Country = () => {
     return name.includes(term)
   })
 
+  // ---------- FORM VIEW ----------
   if (view === "form") {
     return (
       <div className="space-y-6">
+        <Toast toast={toast} onClose={() => setToast((t) => ({ ...t, visible: false }))} />
+
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-gray-900">Country</h1>
           <div className="flex space-x-2">
@@ -172,16 +311,28 @@ const Country = () => {
             </div>
           </div>
         </div>
+
+        <ConfirmModal
+          open={confirmOpen}
+          title="Delete Country?"
+          message={`Are you sure you want to delete ${targetCountry.name}? This action cannot be undone.`}
+          onConfirm={confirmDelete}
+          onCancel={cancelDelete}
+          busy={deleting}
+        />
       </div>
     )
   }
 
+  // ---------- LIST VIEW ----------
   return (
     <div className="space-y-6">
+      <Toast toast={toast} onClose={() => setToast((t) => ({ ...t, visible: false }))} />
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Country</h1>
         <div className="flex space-x-2">
-          <button onClick={() => setView("form")} className="p-2 bg-green-600 text-white rounded hover:bg-green-700">
+          <button onClick={startCreate} className="p-2 bg-green-600 text-white rounded hover:bg-green-700">
             <Plus className="w-4 h-4" />
           </button>
         </div>
@@ -249,14 +400,14 @@ const Country = () => {
                       <td className="px-4 py-3">
                         <div className="flex space-x-2">
                           <button
-                            onClick={() => handleDelete(id)}
+                            onClick={() => askDelete(country)}
                             className="p-1 text-red-600 hover:bg-red-100 rounded"
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleEdit(country)}
+                            onClick={() => startEdit(country)} // ✅ puts ?_id in URL + opens form
                             className="p-1 text-green-600 hover:bg-green-100 rounded"
                             title="Edit"
                           >
@@ -318,6 +469,15 @@ const Country = () => {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        open={confirmOpen}
+        title="Delete Country?"
+        message={`Are you sure you want to delete ${targetCountry.name}? This action cannot be undone.`}
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+        busy={deleting}
+      />
     </div>
   )
 }
