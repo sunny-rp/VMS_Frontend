@@ -446,7 +446,7 @@ export const plantTypesAPI = {
   },
   update: async (plantTypeId, plantTypeData) => {
     return await apiClient.request(`/user/plant-types/edit-plant-type/${plantTypeId}`, {
-      method: "PUT",
+      method: "PATCH",
       body: JSON.stringify(plantTypeData),
     })
   },
@@ -469,7 +469,7 @@ export const plantsAPI = {
   },
   update: async (plantId, plantData) => {
     return await apiClient.request(`/user/plants/edit-plant/${plantId}`, {
-      method: "PUT",
+      method: "PATCH",
       body: JSON.stringify(plantData),
     })
   },
@@ -492,7 +492,7 @@ export const departmentsAPI = {
   },
   update: async (departmentId, departmentData) => {
     return await apiClient.request(`/user/departments/edit-department/${departmentId}`, {
-      method: "PUT",
+      method: "PATCH",
       body: JSON.stringify(departmentData),
     })
   },
@@ -515,7 +515,7 @@ export const gatesAPI = {
   },
   update: async (gateId, gateData) => {
     return await apiClient.request(`/user/gates/edit-gate/${gateId}`, {
-      method: "PUT",
+      method: "PATCH",
       body: JSON.stringify(gateData),
     })
   },
@@ -538,7 +538,7 @@ export const areasAPI = {
   },
   update: async (areaId, areaData) => {
     return await apiClient.request(`/user/areas/edit-area/${areaId}`, {
-      method: "PUT",
+      method: "PATCH",
       body: JSON.stringify(areaData),
     })
   },

@@ -4,7 +4,22 @@ import { useState, useEffect } from "react"
 import { Plus, Edit, Trash2, X } from "lucide-react"
 import { plantTypesAPI } from "../services/api"
 
-const PlantType = () => {
+// --- helpers ---
+const isValidObjectId = (s) => /^[0-9a-fA-F]{24}$/.test(s || "")
+
+const asArray = (res) => {
+  // Normalize common shapes to an array
+  if (Array.isArray(res)) return res
+  if (Array.isArray(res?.data)) return res.data
+  if (Array.isArray(res?.data?.plantTypes)) return res.data.plantTypes
+  if (Array.isArray(res?.items)) return res.items
+  if (Array.isArray(res?.results)) return res.results
+  if (res?.data && typeof res.data === "object") return [res.data]
+  if (res && typeof res === "object" && (res._id || res.plantType || res.name)) return [res]
+  return []
+}
+
+export default function PlantType() {
   const [plantTypes, setPlantTypes] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -13,23 +28,26 @@ const PlantType = () => {
   const [editingId, setEditingId] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const isValidObjectId = (s) => /^[0-9a-fA-F]{24}$/.test(s || "")
-
-  // Fetch plant types
+  // --- data load ---
   const fetchPlantTypes = async () => {
     try {
       setLoading(true)
-      const response = await plantTypesAPI.getAll()
-      // Normalize _id -> id so the rest of the component can just use "id"
-      const items = (response?.data || []).map((p) => ({
-        ...p,
-        id: p.id || p._id || p?._id?.toString?.() || undefined,
-      }))
-      setPlantTypes(items)
       setError("")
+      const response = await plantTypesAPI.getAll()
+      const list = asArray(response)
+
+      // normalize id and common fields
+      const items = list.map((p) => ({
+        ...p,
+        id: p.id || p._id || p?._id?.toString?.(),
+        plantType: p.plantType || p.name || "",
+        isActive: typeof p.isPlantTypeActive === "boolean" ? p.isPlantTypeActive : true,
+      }))
+
+      setPlantTypes(items)
     } catch (err) {
       console.error("Error fetching plant types:", err)
-      setError(err?.response?.data?.message || "Failed to fetch plant types")
+      setError(err?.message || "Failed to fetch plant types")
       setPlantTypes([])
     } finally {
       setLoading(false)
@@ -41,7 +59,7 @@ const PlantType = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Handle form submission
+  // --- actions ---
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!formData.plantType.trim()) {
@@ -54,49 +72,42 @@ const PlantType = () => {
       setError("")
 
       if (editingId) {
-        if (!isValidObjectId(editingId)) {
-          throw new Error("Invalid plant type id")
-        }
-        await plantTypesAPI.update(editingId, formData)
+        if (!isValidObjectId(editingId)) throw new Error("Invalid plant type id")
+        // ✅ PATCH /user/plant-types/edit-plant-type/:plantTypeId
+        await plantTypesAPI.update(editingId, { plantType: formData.plantType })
       } else {
-        await plantTypesAPI.create(formData)
+        await plantTypesAPI.create({ plantType: formData.plantType })
       }
 
       await fetchPlantTypes()
       handleCancel()
     } catch (err) {
       console.error("Error saving plant type:", err)
-      setError(err?.response?.data?.message || err?.message || "Failed to save plant type")
+      setError(err?.message || "Failed to save plant type")
     } finally {
       setSubmitting(false)
     }
   }
 
-  // Handle edit
   const handleEdit = (plantType) => {
-    setFormData({
-      plantType: plantType.plantType || plantType.name || "",
-    })
-    setEditingId(plantType.id) // already normalized
+    setFormData({ plantType: plantType.plantType || "" })
+    setEditingId(plantType.id)
     setShowForm(true)
     setError("")
   }
 
-  // Handle delete
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this plant type?")) return
-
     try {
       if (!isValidObjectId(id)) throw new Error("Invalid plant type id")
       await plantTypesAPI.delete(id)
       await fetchPlantTypes()
     } catch (err) {
       console.error("Error deleting plant type:", err)
-      setError(err?.response?.data?.message || err?.message || "Failed to delete plant type")
+      setError(err?.message || "Failed to delete plant type")
     }
   }
 
-  // Handle cancel
   const handleCancel = () => {
     setShowForm(false)
     setFormData({ plantType: "" })
@@ -104,16 +115,11 @@ const PlantType = () => {
     setError("")
   }
 
-  // Handle input change
   const handleInputChange = (e) => {
     const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  // Handle new item button
   const handleStartCreate = () => {
     setEditingId(null)
     setFormData({ plantType: "" })
@@ -121,6 +127,7 @@ const PlantType = () => {
     setError("")
   }
 
+  // --- render ---
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
@@ -223,11 +230,15 @@ const PlantType = () => {
               plantTypes.map((plantType) => (
                 <tr key={plantType.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {plantType.plantType || plantType.name}
+                    {plantType.plantType.toUpperCase()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                      Active
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        plantType.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {plantType.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -257,5 +268,3 @@ const PlantType = () => {
     </div>
   )
 }
-
-export default PlantType

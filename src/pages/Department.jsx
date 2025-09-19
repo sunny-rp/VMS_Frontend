@@ -4,9 +4,20 @@ import { useState, useEffect, useMemo } from "react"
 import { Search, Plus, Edit, Trash2, Eye } from "lucide-react"
 import { departmentsAPI, usersAPI } from "../services/api"
 
-// helpers
+/* ---------------- helpers ---------------- */
+
 const toId = (x) => x?.id || x?._id || x?._id?.toString?.() || ""
 const s = (v) => (typeof v === "string" ? v : "")
+const isObjectId = (str) => /^[0-9a-fA-F]{24}$/.test(str || "")
+
+const asArray = (res) => {
+  if (Array.isArray(res)) return res
+  if (Array.isArray(res?.data)) return res.data
+  if (Array.isArray(res?.items)) return res.items
+  if (Array.isArray(res?.results)) return res.results
+  if (res?.data && typeof res.data === "object") return [res.data] // tolerate single object
+  return []
+}
 
 const normalizeUser = (u) => ({
   id: toId(u),
@@ -17,17 +28,23 @@ const normalizeDepartment = (d) => {
   const id = toId(d)
   const hodId = toId(d?.headOfDepartment ?? d?.headOfDepartmentId)
   const hodName =
-    (d?.headOfDepartment && (d.headOfDepartment.fullname || d.headOfDepartment.name || d.headOfDepartment.email)) ||
+    (d?.headOfDepartment &&
+      (d.headOfDepartment.fullname || d.headOfDepartment.name || d.headOfDepartment.email)) ||
     d?.headOfDepartmentName ||
     ""
   return {
     id,
     departmentName: s(d?.departmentName),
-    status: d?.status || "Active",
+    status: d?.status || (d?.isDepartmentActive === false ? "Inactive" : "Active"),
     headOfDepartmentId: hodId,
     headOfDepartmentName: s(hodName),
   }
 }
+
+/* If your services/api.js doesn't expose departmentsAPI.delete yet, set this false to hide the delete UI. */
+const HAS_DELETE_API = !!(departmentsAPI && departmentsAPI.delete)
+
+/* ---------------- component ---------------- */
 
 const Department = () => {
   const [view, setView] = useState("list")
@@ -39,13 +56,20 @@ const Department = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
+  /* ------- data fetch ------- */
+
   const fetchDepartments = async () => {
     try {
       setLoading(true)
-      const res = await departmentsAPI.getAll()
-      const list = (res?.data || []).map(normalizeDepartment)
-      setDepartments(list)
       setError("")
+      const res = await departmentsAPI.getAll()
+      // Accept various shapes: {data: [...]}, {data: {departments:[...]}}, plain array, or single object
+      const listRaw =
+        Array.isArray(res?.data?.departments)
+          ? res.data.departments
+          : asArray(res)
+      const list = listRaw.map(normalizeDepartment)
+      setDepartments(list)
     } catch (e) {
       console.error("Error fetching departments:", e)
       setError("Failed to fetch departments")
@@ -58,7 +82,10 @@ const Department = () => {
   const fetchUsers = async () => {
     try {
       const res = await usersAPI.getAll()
-      setUsers((res?.data || []).map(normalizeUser))
+      // Accept {data: [...]}, {data: {users:[...]}} or array
+      const listRaw =
+        Array.isArray(res?.data?.users) ? res.data.users : asArray(res)
+      setUsers(listRaw.map(normalizeUser))
     } catch (e) {
       console.error("Error fetching users:", e)
       setUsers([])
@@ -70,6 +97,8 @@ const Department = () => {
     fetchUsers()
   }, [])
 
+  /* ------- filtering ------- */
+
   const filteredDepartments = useMemo(() => {
     const q = searchTerm.toLowerCase()
     return departments.filter(
@@ -78,6 +107,8 @@ const Department = () => {
         d.headOfDepartmentName?.toLowerCase().includes(q),
     )
   }, [departments, searchTerm])
+
+  /* ------- actions ------- */
 
   const handleAddNew = () => {
     setEditingDepartment(null)
@@ -97,6 +128,7 @@ const Department = () => {
   }
 
   const handleDelete = async (id) => {
+    if (!HAS_DELETE_API) return
     if (!window.confirm("Are you sure you want to delete this department?")) return
     try {
       setLoading(true)
@@ -112,8 +144,14 @@ const Department = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    // Basic validations
     if (!formData.departmentName.trim()) {
       setError("Department name is required")
+      return
+    }
+    if (formData.headOfDepartmentId && !isObjectId(formData.headOfDepartmentId)) {
+      setError("Head Of Department id is invalid")
       return
     }
 
@@ -122,13 +160,13 @@ const Department = () => {
       setError("")
       const payload = {
         departmentName: formData.departmentName,
-        headOfDepartment: formData.headOfDepartmentId, // send ID to backend
+        headOfDepartment: formData.headOfDepartmentId || null, // backend expects 'headOfDepartment'
       }
 
-      if (editingDepartment) {
-        await departmentsAPI.update(editingDepartment.id, payload)
+      if (editingDepartment?.id) {
+        await departmentsAPI.update(editingDepartment.id, payload) // ✅ PATCH /edit-department/:id
       } else {
-        await departmentsAPI.create(payload)
+        await departmentsAPI.create(payload) // ✅ POST /create-department
       }
 
       await fetchDepartments()
@@ -150,6 +188,8 @@ const Department = () => {
     setError("")
   }
 
+  /* ------- render ------- */
+
   if (view === "form") {
     return (
       <div className="space-y-6">
@@ -160,6 +200,7 @@ const Department = () => {
               onClick={handleCancel}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
               disabled={loading}
+              type="button"
             >
               Cancel
             </button>
@@ -167,6 +208,7 @@ const Department = () => {
               onClick={handleSubmit}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50"
               disabled={loading}
+              type="button"
             >
               {loading ? "Saving..." : editingDepartment ? "Update" : "Save"}
             </button>
@@ -210,7 +252,7 @@ const Department = () => {
           </form>
         </div>
 
-        {/* 3D Cube Graphics (unchanged) */}
+        {/* Decorative cards */}
         <div className="fixed bottom-8 right-8">
           <div className="relative">
             <div className="w-32 h-32 bg-gradient-to-br from-cyan-400 to-blue-600 transform rotate-12 rounded-lg shadow-lg flex flex-col items-center justify-center text-white">
@@ -282,13 +324,15 @@ const Department = () => {
                     <tr key={d.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex space-x-2">
-                          <button onClick={() => handleDelete(d.id)} className="p-1 text-red-600 hover:text-red-800">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleEdit(d)} className="p-1 text-green-600 hover:text-green-800">
+                          {HAS_DELETE_API && (
+                            <button onClick={() => handleDelete(d.id)} className="p-1 text-red-600 hover:text-red-800" title="Delete">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button onClick={() => handleEdit(d)} className="p-1 text-green-600 hover:text-green-800" title="Edit">
                             <Edit className="w-4 h-4" />
                           </button>
-                          <button className="p-1 text-blue-600 hover:text-blue-800">
+                          <button className="p-1 text-blue-600 hover:text-blue-800" title="View">
                             <Eye className="w-4 h-4" />
                           </button>
                         </div>
@@ -331,7 +375,7 @@ const Department = () => {
         </div>
       </div>
 
-      {/* 3D Cube Graphics */}
+      {/* Decorative cards */}
       <div className="fixed bottom-8 right-8">
         <div className="w-32 h-32 bg-gradient-to-br from-blue-500 to-purple-600 transform rotate-12 rounded-lg shadow-lg flex flex-col items-center justify-center text-white">
           <div className="text-xs font-medium">Check-In</div>

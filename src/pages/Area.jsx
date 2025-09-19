@@ -4,9 +4,19 @@ import { useState, useEffect, useMemo } from "react"
 import { Plus, Search, Edit, Trash2, Eye, FileText, Download } from "lucide-react"
 import { areasAPI, plantsAPI } from "../services/api"
 
-// ---------- helpers ----------
+/* ---------------- helpers ---------------- */
 const toId = (x) => x?.id || x?._id || x?._id?.toString?.() || ""
 const safeStr = (s) => (typeof s === "string" ? s : "")
+const isObjectId = (v) => /^[0-9a-fA-F]{24}$/.test(v || "")
+
+const asArray = (res) => {
+  if (Array.isArray(res)) return res
+  if (Array.isArray(res?.data)) return res.data
+  if (Array.isArray(res?.items)) return res.items
+  if (Array.isArray(res?.results)) return res.results
+  if (res?.data && typeof res.data === "object") return [res.data] // tolerate single object
+  return []
+}
 
 const normalizePlant = (p) => ({
   id: toId(p),
@@ -17,17 +27,19 @@ const normalizeArea = (a) => {
   const id = toId(a)
   const plantId = toId(a?.plant ?? a?.plantId)
   const plantName =
-    (a?.plant && (a.plant.plantName || a.plant.name)) || a?.plantName || ""
+    (a?.plant && (a.plant.plantName || a.plant.name)) ||
+    a?.plantName ||
+    ""
   return {
     id,
     areaName: safeStr(a?.areaName),
-    status: a?.status || "Active",
+    status: a?.status || (a?.isAreaActive === false ? "Inactive" : "Active"),
     plantId,
     plantName: safeStr(plantName),
   }
 }
 
-// ---------- component ----------
+/* ---------------- component ---------------- */
 const Area = () => {
   const [showForm, setShowForm] = useState(false)
   const [areas, setAreas] = useState([])
@@ -35,10 +47,7 @@ const Area = () => {
   const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [formData, setFormData] = useState({
-    areaName: "",
-    plantId: "",
-  })
+  const [formData, setFormData] = useState({ areaName: "", plantId: "" })
   const [editingId, setEditingId] = useState(null)
 
   useEffect(() => {
@@ -49,10 +58,13 @@ const Area = () => {
   const fetchAreas = async () => {
     try {
       setLoading(true)
-      const response = await areasAPI.getAll()
-      const list = (response?.data || []).map(normalizeArea)
-      setAreas(list)
       setError("")
+      const response = await areasAPI.getAll()
+      // Accept {data:[...]}, {data:{areas:[...]}}, array, or single object
+      const listRaw = Array.isArray(response?.data?.areas)
+        ? response.data.areas
+        : asArray(response)
+      setAreas(listRaw.map(normalizeArea))
     } catch (e) {
       console.error("Error fetching areas:", e)
       setError("Failed to fetch areas")
@@ -65,8 +77,10 @@ const Area = () => {
   const fetchPlants = async () => {
     try {
       const response = await plantsAPI.getAll()
-      const list = (response?.data || []).map(normalizePlant)
-      setPlants(list)
+      const listRaw = Array.isArray(response?.data?.plants)
+        ? response.data.plants
+        : asArray(response)
+      setPlants(listRaw.map(normalizePlant))
     } catch (e) {
       console.error("Error fetching plants:", e)
       setPlants([])
@@ -75,19 +89,33 @@ const Area = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    if (!formData.areaName.trim()) {
+      setError("Area name is required")
+      return
+    }
+    if (!formData.plantId) {
+      setError("Please select a plant")
+      return
+    }
+    if (!isObjectId(formData.plantId)) {
+      setError("Selected plant id is invalid")
+      return
+    }
+
     try {
       setLoading(true)
       setError("")
+      // ✅ Backend expects: { areaName, plant }
       const payload = {
         areaName: formData.areaName,
-        // backend should receive the ID, not the whole object or name
         plant: formData.plantId,
       }
 
       if (editingId) {
-        await areasAPI.update(editingId, payload)
+        await areasAPI.update(editingId, payload) // PATCH /user/areas/edit-area/:areaId
       } else {
-        await areasAPI.create(payload)
+        await areasAPI.create(payload) // POST /user/areas/create-area
       }
 
       await fetchAreas()
@@ -104,14 +132,16 @@ const Area = () => {
 
   const handleEdit = (area) => {
     setFormData({
-      areaName: area.areaName,
-      plantId: area.plantId, // use the normalized id
+      areaName: area.areaName || "",
+      plantId: area.plantId || "",
     })
     setEditingId(area.id)
     setShowForm(true)
+    setError("")
   }
 
   const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this area?")) return
     try {
       setLoading(true)
       await areasAPI.delete(id)
@@ -133,21 +163,18 @@ const Area = () => {
     )
   }, [areas, searchTerm])
 
-  // ---------- form view ----------
+  /* ---------------- form view ---------------- */
   if (showForm) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-gray-900">Area</h1>
           <div className="flex space-x-2">
-            <button className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            <button className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700" type="button">
               <FileText className="w-4 h-4" />
             </button>
-            <button className="p-2 bg-red-600 text-white rounded hover:bg-red-700">
-              <Trash2 className="w-4 h-4" />
-            </button>
-            <button className="p-2 bg-green-600 text-white rounded hover:bg-green-700">
-              <Search className="w-4 h-4" />
+            <button className="p-2 bg-orange-600 text-white rounded hover:bg-orange-700" type="button">
+              <Download className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -170,6 +197,7 @@ const Area = () => {
                 onChange={(e) => setFormData({ ...formData, areaName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                disabled={loading}
               />
             </div>
 
@@ -182,11 +210,12 @@ const Area = () => {
                 onChange={(e) => setFormData({ ...formData, plantId: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                disabled={loading}
               >
                 <option value="">Select Plant</option>
                 {plants.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name.toUpperCase()}
+                    {(p.name || "Unnamed").toUpperCase()}
                   </option>
                 ))}
               </select>
@@ -210,13 +239,14 @@ const Area = () => {
                 setError("")
               }}
               className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
+              disabled={loading}
             >
               Cancel
             </button>
           </div>
         </form>
 
-        {/* 3D Cube (unchanged) */}
+        {/* Decorative cube (unchanged) */}
         <div className="fixed bottom-8 right-8">
           <div className="relative w-32 h-32 transform-gpu perspective-1000">
             <div className="absolute inset-0 transform-style-preserve-3d animate-pulse">
@@ -237,7 +267,7 @@ const Area = () => {
     )
   }
 
-  // ---------- list view ----------
+  /* ---------------- list view ---------------- */
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -266,10 +296,10 @@ const Area = () => {
               />
             </div>
             <div className="flex space-x-2">
-              <button className="p-2 bg-green-600 text-white rounded hover:bg-green-700">
+              <button className="p-2 bg-green-600 text-white rounded hover:bg-green-700" type="button">
                 <FileText className="w-4 h-4" />
               </button>
-              <button className="p-2 bg-orange-600 text-white rounded hover:bg-orange-700">
+              <button className="p-2 bg-orange-600 text-white rounded hover:bg-orange-700" type="button">
                 <Download className="w-4 h-4" />
               </button>
             </div>
@@ -300,23 +330,33 @@ const Area = () => {
                   <tr key={area.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex space-x-2">
-                        <button onClick={() => handleDelete(area.id)} className="p-1 text-red-600 hover:bg-red-100 rounded">
+                        <button
+                          onClick={() => handleDelete(area.id)}
+                          className="p-1 text-red-600 hover:bg-red-100 rounded"
+                          title="Delete"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleEdit(area)} className="p-1 text-green-600 hover:bg-green-100 rounded">
+                        <button
+                          onClick={() => handleEdit(area)}
+                          className="p-1 text-green-600 hover:bg-green-100 rounded"
+                          title="Edit"
+                        >
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button className="p-1 text-blue-600 hover:bg-blue-100 rounded">
+                        <button className="p-1 text-blue-600 hover:bg-blue-100 rounded" title="View">
                           <Eye className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{area.areaName}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{area.plantName}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{area.areaName.toUpperCase()}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{area.plantName.toUpperCase() || "-"}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        area.status === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                      }`}>
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          area.status === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                        }`}
+                      >
                         {area.status}
                       </span>
                     </td>

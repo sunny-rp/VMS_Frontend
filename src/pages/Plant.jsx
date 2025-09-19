@@ -6,30 +6,38 @@ import { plantsAPI, plantTypesAPI, companiesAPI, countriesAPI, statesAPI, cities
 
 /* ---------------- helpers ---------------- */
 
-// Normalize various API shapes into arrays
 const toArray = (maybe) => {
   if (Array.isArray(maybe)) return maybe;
   if (Array.isArray(maybe?.data)) return maybe.data;
   if (Array.isArray(maybe?.items)) return maybe.items;
   if (Array.isArray(maybe?.results)) return maybe.results;
+  if (maybe?.data && typeof maybe.data === "object") return [maybe.data]; // tolerate single object
   return [];
 };
 
-// Pull a stable id
 const getId = (obj) => obj?.id ?? obj?._id ?? obj?.value ?? obj?.key ?? undefined;
+const isObjectId = (s) => /^[0-9a-fA-F]{24}$/.test(s || "");
 
-// Always-unique key even if ids are missing/duplicated
-const keyWithIndex = (prefix, item, idx) => `${prefix}-${getId(item) ?? item?.name ?? item?.plantName ?? "x"}-${idx}`;
+// extract id if the value is either an object with _id/id or already an id
+const extractId = (val) => {
+  if (!val) return "";
+  if (typeof val === "string") return val;
+  return getId(val) || val?._id || "";
+};
 
-// Safely turn mixed shapes (string or object) into labels for display/filtering
-const labelPlantType = (val) =>
-  typeof val === "string" ? val : val?.plantType ?? val?.name ?? "";
-const labelCountry = (val) =>
-  typeof val === "string" ? val : val?.countryName ?? val?.name ?? "";
-const labelState = (val) =>
-  typeof val === "string" ? val : val?.stateName ?? val?.name ?? "";
-const labelCity = (val) =>
-  typeof val === "string" ? val : val?.cityName ?? val?.name ?? "";
+// Make safe labels
+const ptLabel = (x) => x?.plantType ?? x?.name ?? "";
+const ctryLabel = (x) => x?.countryName ?? x?.name ?? "";
+const stateLabel = (x) => x?.stateName ?? x?.name ?? "";
+const cityLabel = (x) => x?.cityName ?? x?.name ?? "";
+
+// Build an id->label map
+const mapById = (array, labeler) =>
+  array.reduce((acc, item) => {
+    const id = extractId(item);
+    if (id) acc[id] = labeler(item);
+    return acc;
+  }, {});
 
 /* ---------------- component ---------------- */
 
@@ -39,30 +47,58 @@ const Plant = () => {
   const [selectedPlantQR, setSelectedPlantQR] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // IMPORTANT: these hold **IDs**
   const [formData, setFormData] = useState({
     plantName: "",
-    plantType: "",
-    plantCountry: "",
-    plantState: "",
-    plantCity: "",
+    plantType: "",     // ObjectId string
+    plantCountry: "",  // ObjectId string
+    plantState: "",    // ObjectId string
+    plantCity: "",     // ObjectId string
   });
+  const [editingId, setEditingId] = useState(null);
 
   const [plants, setPlants] = useState([]);
   const [plantTypes, setPlantTypes] = useState([]);
-  const [companies, setCompanies] = useState([]); // reserved for future use
+  const [companies, setCompanies] = useState([]); // reserved
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Guaranteed arrays for safe mapping
+  // Normalize arrays
   const plantsArr = useMemo(() => toArray(plants), [plants]);
   const plantTypesArr = useMemo(() => toArray(plantTypes), [plantTypes]);
-  const companiesArr = useMemo(() => toArray(companies), [companies]);
   const countriesArr = useMemo(() => toArray(countries), [countries]);
   const statesArr = useMemo(() => toArray(states), [states]);
   const citiesArr = useMemo(() => toArray(cities), [cities]);
+
+  // Build option/label maps for display & filtering
+  const ptMap = useMemo(() => mapById(plantTypesArr, ptLabel), [plantTypesArr]);
+  const countryMap = useMemo(() => mapById(countriesArr, ctryLabel), [countriesArr]);
+  const stateMap = useMemo(() => mapById(statesArr, stateLabel), [statesArr]);
+  const cityMap = useMemo(() => mapById(citiesArr, cityLabel), [citiesArr]);
+
+  // For dependent dropdowns, keep relationships as IDs
+  const statesByCountry = useMemo(() => {
+    const m = {};
+    statesArr.forEach((s) => {
+      const countryId = extractId(s.country);
+      if (!m[countryId]) m[countryId] = [];
+      m[countryId].push(s);
+    });
+    return m;
+  }, [statesArr]);
+
+  const citiesByState = useMemo(() => {
+    const m = {};
+    citiesArr.forEach((c) => {
+      const stateId = extractId(c.state);
+      if (!m[stateId]) m[stateId] = [];
+      m[stateId].push(c);
+    });
+    return m;
+  }, [citiesArr]);
 
   useEffect(() => {
     fetchAllData();
@@ -82,12 +118,12 @@ const Plant = () => {
         citiesAPI.getAll(),
       ]);
 
-      setPlants(toArray(plantsRes?.data ?? plantsRes?.items ?? plantsRes?.results ?? plantsRes));
-      setPlantTypes(toArray(plantTypesRes?.data ?? plantTypesRes?.items ?? plantTypesRes?.results ?? plantTypesRes));
-      setCompanies(toArray(companiesRes?.data ?? companiesRes?.items ?? companiesRes?.results ?? companiesRes));
-      setCountries(toArray(countriesRes?.data ?? countriesRes?.items ?? countriesRes?.results ?? countriesRes));
-      setStates(toArray(statesRes?.data ?? statesRes?.items ?? statesRes?.results ?? statesRes));
-      setCities(toArray(citiesRes?.data ?? citiesRes?.items ?? citiesRes?.results ?? citiesRes));
+      setPlants(toArray(plantsRes?.data ?? plantsRes));
+      setPlantTypes(toArray(plantTypesRes?.data ?? plantTypesRes));
+      setCompanies(toArray(companiesRes?.data ?? companiesRes));
+      setCountries(toArray(countriesRes?.data ?? countriesRes));
+      setStates(toArray(statesRes?.data ?? statesRes));
+      setCities(toArray(citiesRes?.data ?? citiesRes));
     } catch (err) {
       console.error("Error fetching data:", err);
       setError("Failed to fetch data");
@@ -118,57 +154,120 @@ const Plant = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Reset child selects if parent changes
+    if (name === "plantCountry") {
+      setFormData((prev) => ({ ...prev, plantCountry: value, plantState: "", plantCity: "" }));
+    } else if (name === "plantState") {
+      setFormData((prev) => ({ ...prev, plantState: value, plantCity: "" }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
+  const validatePayload = ({ plantName, plantType, plantCountry, plantState, plantCity }) => {
+    if (!plantName.trim()) throw new Error("Plant name is required");
+    if (!isObjectId(plantType)) throw new Error("Invalid Plant Type id");
+    if (!isObjectId(plantCountry)) throw new Error("Invalid Country id");
+    if (!isObjectId(plantState)) throw new Error("Invalid State id");
+    if (!isObjectId(plantCity)) throw new Error("Invalid City id");
+  };
+
+  // CREATE or UPDATE
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       setLoading(true);
       setError("");
 
-      await plantsAPI.create(formData);
+      const payload = {
+        plantName: formData.plantName,
+        plantType: formData.plantType,
+        plantCountry: formData.plantCountry,
+        plantState: formData.plantState,
+        plantCity: formData.plantCity,
+      };
+
+      validatePayload(payload);
+
+      if (editingId) {
+        await plantsAPI.update(editingId, payload);
+      } else {
+        await plantsAPI.create(payload);
+      }
 
       await fetchAllData();
 
       setShowForm(false);
-      setFormData({
-        plantName: "",
-        plantType: "",
-        plantCountry: "",
-        plantState: "",
-        plantCity: "",
-      });
+      setEditingId(null);
+      setFormData({ plantName: "", plantType: "", plantCountry: "", plantState: "", plantCity: "" });
     } catch (err) {
-      console.error("Error creating plant:", err);
-      setError(err?.message || "Failed to create plant");
+      console.error("Error saving plant:", err);
+      setError(err?.message || "Failed to save plant");
     } finally {
       setLoading(false);
     }
   };
 
-  // Filtering with safe labels
+  // Start editing a row (pre-fill with IDs)
+  const startEdit = (plant) => {
+    const id = extractId(plant);
+    const pType = extractId(plant?.plantType);
+    const pCountry = extractId(plant?.plantCountry);
+    const pState = extractId(plant?.plantState);
+    const pCity = extractId(plant?.plantCity);
+
+    setEditingId(id);
+    setFormData({
+      plantName: plant?.plantName ?? "",
+      plantType: pType || "",
+      plantCountry: pCountry || "",
+      plantState: pState || "",
+      plantCity: pCity || "",
+    });
+    setShowForm(true);
+    setError("");
+  };
+
+  const handleDelete = async (plant) => {
+    console.log("TODO: wire delete API for plant id =", extractId(plant));
+    // await plantsAPI.delete(extractId(plant))
+    // await fetchAllData()
+  };
+
+  // Filtering by visible labels using maps
   const term = searchTerm.trim().toLowerCase();
   const filteredPlants = useMemo(() => {
     if (!term) return plantsArr;
     return plantsArr.filter((p) => {
       const name = (p?.plantName ?? "").toLowerCase();
-      const type = labelPlantType(p?.plantType).toLowerCase();
-      const country = labelCountry(p?.plantCountry).toLowerCase();
-      const state = labelState(p?.plantState).toLowerCase();
-      const city = labelCity(p?.plantCity).toLowerCase();
+      const type = (ptMap[extractId(p?.plantType)] || "").toLowerCase();
+      const country = (countryMap[extractId(p?.plantCountry)] || "").toLowerCase();
+      const state = (stateMap[extractId(p?.plantState)] || "").toLowerCase();
+      const city = (cityMap[extractId(p?.plantCity)] || "").toLowerCase();
       return [name, type, country, state, city].some((v) => v.includes(term));
     });
-  }, [plantsArr, term]);
+  }, [plantsArr, term, ptMap, countryMap, stateMap, cityMap]);
 
   /* ---------------- form view ---------------- */
 
   if (showForm) {
+    const allowedStates = statesByCountry[formData.plantCountry] || [];
+    const allowedCities = citiesByState[formData.plantState] || [];
+
     return (
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-semibold text-gray-900">Plant</h1>
-          <button onClick={() => setShowForm(false)} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+          <button
+            onClick={() => {
+              setShowForm(false);
+              setEditingId(null);
+              setFormData({ plantName: "", plantType: "", plantCountry: "", plantState: "", plantCity: "" });
+              setError("");
+            }}
+            className="px-4 py-2 text-gray-600 hover:text-gray-800"
+          >
             ← Back to List
           </button>
         </div>
@@ -207,11 +306,14 @@ const Plant = () => {
                 required
               >
                 <option value="">Select Plant Type</option>
-                {plantTypesArr.map((type, idx) => (
-                  <option key={keyWithIndex("ptype", type, idx)} value={labelPlantType(type)}>
-                    {labelPlantType(type) || "Unnamed"}
-                  </option>
-                ))}
+                {plantTypesArr.map((type) => {
+                  const id = extractId(type);
+                  return (
+                    <option key={id} value={id}>
+                      {ptLabel(type) || "Unnamed"}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
@@ -227,11 +329,11 @@ const Plant = () => {
                 required
               >
                 <option value="">Select Country</option>
-                {countriesArr.map((country, idx) => {
-                  const label = labelCountry(country);
+                {countriesArr.map((country) => {
+                  const id = extractId(country);
                   return (
-                    <option key={keyWithIndex("country", country, idx)} value={label}>
-                      {label || "Unnamed"}
+                    <option key={id} value={id}>
+                      {ctryLabel(country) || "Unnamed"}
                     </option>
                   );
                 })}
@@ -248,19 +350,17 @@ const Plant = () => {
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
+                disabled={!formData.plantCountry}
               >
                 <option value="">Select State</option>
-                {statesArr
-                  .filter((state) => labelCountry(state?.country) === formData.plantCountry)
-                  .map((state, idx) => {
-                    const label = labelState(state);
-                    const value = label || state?.stateName || state?.name || "";
-                    return (
-                      <option key={keyWithIndex("state", state, idx)} value={value}>
-                        {value || "Unnamed"}
-                      </option>
-                    );
-                  })}
+                {allowedStates.map((state) => {
+                  const id = extractId(state);
+                  return (
+                    <option key={id} value={id}>
+                      {stateLabel(state) || "Unnamed"}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
@@ -274,23 +374,17 @@ const Plant = () => {
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
+                disabled={!formData.plantState}
               >
                 <option value="">Select City</option>
-                {citiesArr
-                  .filter(
-                    (city) =>
-                      labelCountry(city?.country) === formData.plantCountry &&
-                      labelState(city?.state) === formData.plantState
-                  )
-                  .map((city, idx) => {
-                    const label = labelCity(city);
-                    const value = label || city?.cityName || city?.name || "";
-                    return (
-                      <option key={keyWithIndex("city", city, idx)} value={value}>
-                        {value || "Unnamed"}
-                      </option>
-                    );
-                  })}
+                {allowedCities.map((city) => {
+                  const id = extractId(city);
+                  return (
+                    <option key={id} value={id}>
+                      {cityLabel(city) || "Unnamed"}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
@@ -298,7 +392,12 @@ const Plant = () => {
           <div className="flex justify-end mt-6 space-x-4">
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                setShowForm(false);
+                setEditingId(null);
+                setFormData({ plantName: "", plantType: "", plantCountry: "", plantState: "", plantCity: "" });
+                setError("");
+              }}
               className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
               disabled={loading}
             >
@@ -309,29 +408,10 @@ const Plant = () => {
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
               disabled={loading}
             >
-              {loading ? "Saving..." : "Save Plant"}
+              {loading ? "Saving..." : editingId ? "Update Plant" : "Save Plant"}
             </button>
           </div>
         </form>
-
-        {/* Decorative cards */}
-        <div className="fixed bottom-8 right-8">
-          <div className="relative">
-            <div className="w-32 h-32 bg-gradient-to-br from-blue-400 to-blue-600 transform rotate-12 rounded-lg shadow-lg flex items-center justify-center">
-              <div className="text-white text-center">
-                <div className="text-xs font-medium">Total Visitors</div>
-                <div className="text-2xl font-bold">0</div>
-              </div>
-            </div>
-            <div className="absolute -top-4 -right-4 w-32 h-32 bg-gradient-to-br from-purple-500 to-purple-700 transform -rotate-12 rounded-lg shadow-lg flex items-center justify-center">
-              <div className="text-white text-center">
-                <div className="text-xs font-medium">Check-In</div>
-                <div className="text-xs font-medium">Visitors</div>
-                <div className="text-2xl font-bold">0</div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     );
   }
@@ -343,7 +423,11 @@ const Plant = () => {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Plant</h1>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={() => {
+            setEditingId(null);
+            setFormData({ plantName: "", plantType: "", plantCountry: "", plantState: "", plantCity: "" });
+            setShowForm(true);
+          }}
           className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
         >
           <Plus className="w-4 h-4" />
@@ -413,15 +497,29 @@ const Plant = () => {
                 </tr>
               ) : (
                 filteredPlants.map((plant, idx) => {
+                  const id = extractId(plant);
+                  const ptName = ptMap[extractId(plant?.plantType)] || "N/A";
+                  const countryName = countryMap[extractId(plant?.plantCountry)] || "N/A";
+                  const stateName = stateMap[extractId(plant?.plantState)] || "N/A";
+                  const cityName = cityMap[extractId(plant?.plantCity)] || "N/A";
                   const isActive = Boolean(plant?.isPlantActive);
+
                   return (
-                    <tr key={getId(plant) ?? `${plant?.plantName ?? "plant"}-${idx}`} className="hover:bg-gray-50">
+                    <tr key={id || `${plant?.plantName ?? "plant"}-${idx}`} className="hover:bg-gray-50">
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex space-x-2">
-                          <button className="p-1 text-red-600 hover:bg-red-50 rounded" title="Delete">
+                          <button
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                            title="Delete"
+                            onClick={() => handleDelete(plant)}
+                          >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                          <button className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="Edit">
+                          <button
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            title="Edit"
+                            onClick={() => startEdit(plant)}
+                          >
                             <Edit className="w-4 h-4" />
                           </button>
                           <button className="p-1 text-gray-600 hover:bg-gray-50 rounded" title="View">
@@ -430,21 +528,12 @@ const Plant = () => {
                         </div>
                       </td>
 
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{plant?.plantName ?? "N/A"}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {labelPlantType(plant?.plantType) || "N/A"}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {labelCountry(plant?.plantCountry) || "N/A"}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {labelState(plant?.plantState) || "N/A"}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {labelCity(plant?.plantCity) || "N/A"}
-                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{plant?.plantName.toUpperCase() ?? "N/A"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{ptName.toUpperCase()}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{countryName.toUpperCase()}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{stateName.toUpperCase()}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{cityName.toUpperCase()}</td>
 
-                      {/* STATUS based on isPlantActive */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span
                           className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -470,30 +559,6 @@ const Plant = () => {
               )}
             </tbody>
           </table>
-        </div>
-
-        <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <p className="text-sm text-gray-700">
-                Showing <span className="font-medium">1</span> to{" "}
-                <span className="font-medium">{Math.min(10, filteredPlants.length)}</span> of{" "}
-                <span className="font-medium">{filteredPlants.length}</span> Entries
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">««</button>
-              <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">‹</button>
-              <button className="px-3 py-1 text-sm bg-blue-600 text-white border border-blue-600 rounded">1</button>
-              <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">›</button>
-              <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">»»</button>
-              <select className="ml-2 px-2 py-1 text-sm border border-gray-300 rounded">
-                <option>10</option>
-                <option>25</option>
-                <option>50</option>
-              </select>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -527,7 +592,15 @@ const Plant = () => {
 
               <div className="flex space-x-3 justify-center">
                 <button
-                  onClick={downloadQR}
+                  onClick={() => {
+                    if (!selectedPlantQR.qrCode) return;
+                    const link = document.createElement("a");
+                    link.href = selectedPlantQR.qrCode;
+                    link.download = `${selectedPlantQR.plantName || "plant"}_QR.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
                   disabled={!selectedPlantQR.qrCode}
                   className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >

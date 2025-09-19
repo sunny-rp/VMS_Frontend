@@ -4,11 +4,22 @@ import { useState, useEffect } from "react"
 import { Search, Plus, Edit, Trash2, Eye } from "lucide-react"
 import { rolesAPI } from "../services/api"
 
-// Single helper at module scope (avoid duplicate declarations)
+// Display helper
 const toDisplayDateTime = (iso) => {
   if (!iso) return "-"
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? "-" : d.toLocaleString()
+}
+
+// Normalize roles list from various backend shapes
+const asRoleArray = (res) => {
+  if (Array.isArray(res)) return res
+  if (Array.isArray(res?.data)) return res.data
+  if (Array.isArray(res?.data?.roles)) return res.data.roles
+  if (Array.isArray(res?.roles)) return res.roles
+  if (res?.data && typeof res.data === "object") return [res.data]
+  if (res && typeof res === "object" && (res.roleName || res._id)) return [res]
+  return []
 }
 
 export default function Role() {
@@ -29,10 +40,9 @@ export default function Role() {
       setLoading(true)
       setError("")
       const response = await rolesAPI.getAll()
-      // API shape: { statusCode, data: { roles: [...] }, message, success }
-      const list = Array.isArray(response?.data?.roles) ? response.data.roles : []
+      const list = asRoleArray(response)
       setRoles(list)
-      if (!Array.isArray(response?.data?.roles)) {
+      if (!Array.isArray(list)) {
         console.warn("Unexpected roles response:", response)
         setError("Unexpected roles response format.")
       }
@@ -45,6 +55,13 @@ export default function Role() {
     }
   }
 
+  const resetForm = () => {
+    setFormData({ roleName: "" })
+    setEditingRole(null)
+    setShowForm(false)
+    setError("")
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError("")
@@ -53,13 +70,12 @@ export default function Role() {
       if (editingRole?._id) {
         // ✅ PATCH /user/roles/edit-role/:roleId
         await rolesAPI.update(editingRole._id, { roleName: formData.roleName })
-        await fetchRoles()
-        resetForm()
       } else {
+        // Assuming your backend POST /user/roles/create-role
         await rolesAPI.create({ roleName: formData.roleName })
-        await fetchRoles()
-        resetForm()
       }
+      await fetchRoles()
+      resetForm()
     } catch (err) {
       console.error("Error saving role:", err)
       setError(err?.message || "Failed to save role")
@@ -68,22 +84,26 @@ export default function Role() {
     }
   }
 
-  const resetForm = () => {
-    setFormData({ roleName: "" })
-    setEditingRole(null)
-    setShowForm(false)
-    setError("")
-  }
-
   const handleEdit = (role) => {
     setFormData({ roleName: role?.roleName ?? "" })
     setEditingRole(role)
     setShowForm(true)
   }
 
-  const handleDelete = (id) => {
-    // Local remove for now (wire to delete API later)
-    setRoles((prev) => prev.filter((r) => r._id !== id))
+  const handleDelete = async (id) => {
+    try {
+      setLoading(true)
+      setError("")
+      // If you have a delete endpoint exposed, prefer it:
+      // await rolesAPI.delete(id)
+      // For now, optimistically remove from UI:
+      setRoles((prev) => prev.filter((r) => r._id !== id))
+    } catch (err) {
+      console.error("Error deleting role:", err)
+      setError(err?.message || "Failed to delete role")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const filteredRoles = (Array.isArray(roles) ? roles : []).filter((role) => {
@@ -219,7 +239,7 @@ export default function Role() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredRoles.map((role) => {
+              {(Array.isArray(filteredRoles) ? filteredRoles : []).map((role) => {
                 const id = role?._id
                 const nameUpper = (role?.roleName || "").toUpperCase()
                 const created = toDisplayDateTime(role?.createdAt)

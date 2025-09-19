@@ -1,14 +1,21 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Search, Plus, Edit, Trash2, Eye, Calendar } from "lucide-react"
+import { Search, Plus, Edit, Trash2, Eye } from "lucide-react"
 import { gatesAPI, plantsAPI, usersAPI } from "../services/api"
 
-// ---------- helpers ----------
+/* ======================== helpers ======================== */
+
+// generic id getter
 const toId = (x) => x?.id || x?._id || x?._id?.toString?.() || ""
+
+// string-safe
 const str = (v) => (typeof v === "string" ? v : "")
+
+// UPPER label
 const up = (v) => str(v).toUpperCase()
 
+// normalize plant/user for dropdowns (id + label)
 const normalizePlant = (p) => ({
   id: toId(p),
   name: str(p?.plantName || p?.name),
@@ -19,54 +26,64 @@ const normalizeUser = (u) => ({
   name: str(u?.fullname || u?.name || u?.username || u?.email),
 })
 
+// normalize gate rows for list + keep nested IDs for edit
 const normalizeGateForList = (g) => {
-  // convert any nested objects to strings for safe rendering
-  const getPlantName = () => {
-    if (!g?.plant) return ""
-    if (typeof g.plant === "string") return g.plant
-    return str(g.plant?.plantName || g.plant?.name)
+  const readNameFrom = (o, fields) => {
+    if (!o) return ""
+    if (typeof o === "string") return o
+    for (const f of fields) {
+      if (o[f]) return str(o[f])
+    }
+    return ""
   }
-
-  const getUserName = (u) => {
-    if (!u) return ""
-    if (typeof u === "string") return u
-    return str(u?.fullname || u?.name || u?.username || u?.email)
-  }
-
   return {
+    // identifiers
     id: toId(g),
+
+    // editable fields (names for display)
     gateName: str(g?.gateName),
     gateNumber: str(g?.gateNumber),
+
+    // time fields come back as strings like "11:30 AM" — display as-is
     gateOpenTime: str(g?.gateOpenTime),
     gateCloseTime: str(g?.gateCloseTime),
-    plantName: getPlantName(),
-    gateInchargeName: getUserName(g?.gateInchargeName || g?.gateIncharge),
-    gateSecurity: getUserName(g?.gateSecurity),
-    status: g?.status || "Active",
+
+    // display labels
+    plantName: readNameFrom(g?.plant, ["plantName", "name"]),
+    gateInchargeName: readNameFrom(g?.gateInchargeName ?? g?.gateIncharge, ["fullname", "name", "username", "email"]),
+    gateSecurity: readNameFrom(g?.gateSecurity, ["fullname", "name", "username", "email"]),
+
+    // keep the IDs so edit form can preselect
+    plantId: toId(g?.plant),
+    gateInchargeId: toId(g?.gateInchargeName ?? g?.gateIncharge),
+    gateSecurityId: toId(g?.gateSecurity),
+
+    status: g?.status || (g?.isgateActive === false ? "Inactive" : "Active"),
   }
 }
 
-// ---------- component ----------
+/* ======================== component ======================== */
+
 const Gate = () => {
-  const [currentView, setCurrentView] = useState("list") // 'list' | 'form'
+  const [view, setView] = useState("list") // 'list' | 'form'
   const [gates, setGates] = useState([])
   const [plants, setPlants] = useState([])
   const [users, setUsers] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [/*error*/, setError] = useState("") // keep state but don't render
-
   const [searchTerm, setSearchTerm] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+
   const [editingGate, setEditingGate] = useState(null)
 
-  // form fields LIMITED to your list
+  // Form state — now stores **IDs** for plant/incharge/security
   const [formData, setFormData] = useState({
-    plant: "",            // will store PLANT NAME (string) for create
-    gateOpenTime: "",
-    gateCloseTime: "",
-    gateSecurity: "",     // will store USER NAME (string) for create
     gateName: "",
     gateNumber: "",
-    gateInchargeName: "", // will store USER NAME (string) for create
+    plantId: "",          // ObjectId string required by backend
+    gateInchargeId: "",   // ObjectId string
+    gateSecurityId: "",   // ObjectId string
+    gateOpenTime: "",     // datetime-local string (we'll convert to ISO)
+    gateCloseTime: "",    // datetime-local string (we'll convert to ISO)
   })
 
   useEffect(() => {
@@ -78,34 +95,16 @@ const Gate = () => {
       setLoading(true)
       setError("")
       const [gRes, pRes, uRes] = await Promise.all([
-        gatesAPI.getAll().catch((e) => {
-          // tolerate 404 gracefully
-          if (e?.response?.status === 404) return { data: [] }
-          throw e
-        }),
-        plantsAPI.getAll().catch((e) => {
-          if (e?.response?.status === 404) return { data: [] }
-          throw e
-        }),
-        usersAPI.getAll().catch((e) => {
-          if (e?.response?.status === 404) return { data: [] }
-          throw e
-        }),
+        gatesAPI.getAll().catch(() => ({ data: [] })),   // tolerate empty/404
+        plantsAPI.getAll().catch(() => ({ data: [] })),
+        usersAPI.getAll().catch(() => ({ data: [] })),
       ])
-
-      const normPlants = (pRes?.data || []).map(normalizePlant)
-      const normUsers = (uRes?.data || []).map(normalizeUser)
-      const normGates = (gRes?.data || []).map(normalizeGateForList)
-
-      setPlants(normPlants)
-      setUsers(normUsers)
-      setGates(normGates)
+      setGates((gRes?.data || []).map(normalizeGateForList))
+      setPlants((pRes?.data || []).map(normalizePlant))
+      setUsers((uRes?.data || []).map(normalizeUser))
     } catch (e) {
-      console.warn("Fetch failed:", e?.response?.data ?? e?.message ?? e)
       setError(e?.message || "Failed to load data")
-      setPlants([])
-      setUsers([])
-      setGates([])
+      setGates([]); setPlants([]); setUsers([])
     } finally {
       setLoading(false)
     }
@@ -128,70 +127,75 @@ const Gate = () => {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
+  // Convert datetime-local -> ISO. If your API wants plain text, replace with the raw value.
+  const toISO = (v) => (v ? new Date(v).toISOString() : null)
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-
     try {
       setLoading(true)
       setError("")
 
-      // You asked to send these exact fields on create.
-      // We’re sending strings for plant (plant name), gateInchargeName (user name), and gateSecurity (user name),
-      // so the backend won’t receive objects.
+      // EXACT KEYS backend expects; now with **IDs**
       const payload = {
-        plant: formData.plant,
-        gateOpenTime: formData.gateOpenTime,
-        gateCloseTime: formData.gateCloseTime,
-        gateSecurity: formData.gateSecurity,
         gateName: formData.gateName,
         gateNumber: formData.gateNumber,
-        gateInchargeName: formData.gateInchargeName,
+        plant: formData.plantId,                 // send ObjectId
+        gateOpenTime: toISO(formData.gateOpenTime),
+        gateCloseTime: toISO(formData.gateCloseTime),
+        gateInchargeName: formData.gateInchargeId, // send ObjectId
+        gateSecurity: formData.gateSecurityId,     // send ObjectId
       }
 
-      let res
       if (editingGate?.id) {
-        // If you later want update, reuse payload:
-        res = await gatesAPI.update(editingGate.id, payload)
+        await gatesAPI.update(editingGate.id, payload)
       } else {
-        res = await gatesAPI.create(payload)
-      }
-
-      if (res?.success === false) {
-        throw new Error(res?.message || "Save failed")
+        await gatesAPI.create(payload)
       }
 
       await fetchAll()
-      setEditingGate(null)
-      setFormData({
-        plant: "",
-        gateOpenTime: "",
-        gateCloseTime: "",
-        gateSecurity: "",
-        gateName: "",
-        gateNumber: "",
-        gateInchargeName: "",
-      })
-      setCurrentView("list")
+      resetForm()
+      setView("list")
     } catch (e) {
-      console.warn("Save gate failed:", e?.response?.data ?? e?.message ?? e)
       setError(e?.message || "Failed to save gate")
     } finally {
       setLoading(false)
     }
   }
 
+  const resetForm = () => {
+    setEditingGate(null)
+    setFormData({
+      gateName: "",
+      gateNumber: "",
+      plantId: "",
+      gateInchargeId: "",
+      gateSecurityId: "",
+      gateOpenTime: "",
+      gateCloseTime: "",
+    })
+  }
+
+  const handleAddNew = () => {
+    resetForm()
+    setView("form")
+  }
+
   const handleEdit = (row) => {
     setEditingGate(row)
+    // We kept the related IDs during normalization; prefill them here
     setFormData({
-      plant: row.plantName || "",
-      gateOpenTime: row.gateOpenTime || "",
-      gateCloseTime: row.gateCloseTime || "",
-      gateSecurity: row.gateSecurity || "",
       gateName: row.gateName || "",
       gateNumber: row.gateNumber || "",
-      gateInchargeName: row.gateInchargeName || "",
+      plantId: row.plantId || "",
+      gateInchargeId: row.gateInchargeId || "",
+      gateSecurityId: row.gateSecurityId || "",
+      // Editing times: if API returns "11:30 AM", we can’t prefill datetime-local.
+      // Leave blank or you may parse to a datetime here if you store ISO in your backend.
+      gateOpenTime: "",
+      gateCloseTime: "",
     })
-    setCurrentView("form")
+    setView("form")
   }
 
   const handleDelete = async (id) => {
@@ -201,65 +205,51 @@ const Gate = () => {
       await gatesAPI.delete(id)
       setGates((prev) => prev.filter((g) => g.id !== id))
     } catch (e) {
-      console.warn("Delete gate failed:", e?.response?.data ?? e?.message ?? e)
+      setError(e?.message || "Failed to delete gate")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleAddNew = () => {
-    setEditingGate(null)
-    setFormData({
-      plant: "",
-      gateOpenTime: "",
-      gateCloseTime: "",
-      gateSecurity: "",
-      gateName: "",
-      gateNumber: "",
-      gateInchargeName: "",
-    })
-    setCurrentView("form")
-  }
-
-  // dropdown options (UPPERCASE labels)
   const plantOptions = plants.map((p) => (
-    <option key={p.id} value={p.name}>
+    <option key={p.id} value={p.id}>
       {up(p.name)}
     </option>
   ))
 
   const userOptions = users.map((u) => (
-    <option key={u.id} value={u.name}>
+    <option key={u.id} value={u.id}>
       {up(u.name)}
     </option>
   ))
 
-  // -------------- FORM VIEW --------------
-  if (currentView === "form") {
+  /* ======================== form view ======================== */
+  if (view === "form") {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-gray-900">Gate</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">{editingGate ? "Edit Gate" : "Add Gate"}</h1>
           <div className="flex space-x-2">
             <button
-              onClick={() => setCurrentView("list")}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+              onClick={() => setView("list")}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+              disabled={loading}
             >
-              <Eye className="w-4 h-4" />
+              Cancel
             </button>
             <button
-              onClick={() => setCurrentView("list")}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center space-x-2"
+              onClick={handleSubmit}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
             >
-              <Trash2 className="w-4 h-4" />
-            </button>
-            <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center space-x-2">
-              <Search className="w-4 h-4" />
+              {loading ? "Saving..." : editingGate ? "Update" : "Save"}
             </button>
           </div>
         </div>
 
-        {/* No on-screen error messages per your request */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{error}</div>
+        )}
 
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -275,6 +265,7 @@ const Gate = () => {
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                disabled={loading}
               />
             </div>
 
@@ -290,96 +281,97 @@ const Gate = () => {
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                disabled={loading}
               />
             </div>
 
-            {/* Plant (from plants API) */}
+            {/* Plant (ID) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Plant<span className="text-red-500">*</span>
               </label>
               <select
-                name="plant"
-                value={formData.plant}
+                name="plantId"
+                value={formData.plantId}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                disabled={loading}
               >
                 <option value="">SELECT PLANT</option>
                 {plantOptions}
               </select>
             </div>
 
-            {/* Gate Incharge Name (from users API) */}
+            {/* Gate Incharge (ID) */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Gate Incharge Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Gate Incharge</label>
               <select
-                name="gateInchargeName"
-                value={formData.gateInchargeName}
+                name="gateInchargeId"
+                value={formData.gateInchargeId}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={loading}
               >
-                <option value="">GATE INCHARGE NAME</option>
+                <option value="">SELECT INCHARGE</option>
                 {userOptions}
               </select>
             </div>
 
-            {/* Gate Security (from users API) */}
+            {/* Gate Security (ID) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Gate Security</label>
               <select
-                name="gateSecurity"
-                value={formData.gateSecurity}
+                name="gateSecurityId"
+                value={formData.gateSecurityId}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={loading}
               >
                 <option value="">SELECT SECURITY</option>
                 {userOptions}
               </select>
             </div>
 
-            {/* Gate Open Time */}
+            {/* Gate Open Date/Time */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Gate Open Time<span className="text-red-500">*</span>
+                Gate Open Date/Time<span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <input
-                  type="time"
-                  name="gateOpenTime"
-                  value={formData.gateOpenTime}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                <Calendar className="absolute right-3 top-2.5 h-4 w-4 text-gray-400 pointer-events-none" />
-              </div>
+              <input
+                type="datetime-local"
+                name="gateOpenTime"
+                value={formData.gateOpenTime}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+                disabled={loading}
+              />
             </div>
 
-            {/* Gate Close Time */}
+            {/* Gate Close Date/Time */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Gate Close Time<span className="text-red-500">*</span>
+                Gate Close Date/Time<span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <input
-                  type="time"
-                  name="gateCloseTime"
-                  value={formData.gateCloseTime}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                <Calendar className="absolute right-3 top-2.5 h-4 w-4 text-gray-400 pointer-events-none" />
-              </div>
+              <input
+                type="datetime-local"
+                name="gateCloseTime"
+                value={formData.gateCloseTime}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+                disabled={loading}
+              />
             </div>
           </div>
 
           <div className="flex justify-end space-x-4">
             <button
               type="button"
-              onClick={() => setCurrentView("list")}
+              onClick={() => setView("list")}
               className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              disabled={loading}
             >
               Cancel
             </button>
@@ -396,7 +388,7 @@ const Gate = () => {
     )
   }
 
-  // -------------- LIST VIEW --------------
+  /* ======================== list view ======================== */
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -404,20 +396,16 @@ const Gate = () => {
         <div className="flex space-x-2">
           <button
             onClick={handleAddNew}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center space-x-2"
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
           >
             <Plus className="w-4 h-4" />
-          </button>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2">
-            <Eye className="w-4 h-4" />
-          </button>
-          <button className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center space-x-2">
-            <Edit className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Intentionally not rendering error messages */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{error}</div>
+      )}
 
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 border-b border-gray-200">
@@ -479,13 +467,14 @@ const Gate = () => {
                         </button>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{g.gateName}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{g.gateNumber}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{g.plantName}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{g.gateInchargeName}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{g.gateOpenTime}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{g.gateCloseTime}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{g.gateSecurity}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{g.gateName.toUpperCase()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{g.gateNumber.toUpperCase()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{g.plantName.toUpperCase()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{g.gateInchargeName.toUpperCase()}</td>
+                    {/* display whatever the API returned (e.g., "11:30 AM") */}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{g.gateOpenTime || "N/A"}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{g.gateCloseTime || "N/A"}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{g.gateSecurity.toUpperCase()}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
