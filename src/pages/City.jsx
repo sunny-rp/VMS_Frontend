@@ -1,3 +1,4 @@
+// src/pages/City.jsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -15,6 +16,58 @@ const sid = (v) => (v == null ? "" : String(v)) // stringify id safely
 const toBool = (v) =>
   v === true || v === "true" || v === 1 || v === "1" || v === "Active" || v === "ACTIVE"
 
+/** Simple confirmation modal (no external libs) */
+const ConfirmDeleteModal = ({ open, title, message, onCancel, onConfirm, loading }) => {
+  if (!open) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-delete-title"
+      aria-describedby="confirm-delete-desc"
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50" onClick={loading ? undefined : onCancel} />
+
+      {/* Dialog */}
+      <div className="relative w-full max-w-md rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
+        <div className="p-6">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+              <Trash2 className="h-5 w-5 text-red-600" />
+            </span>
+            <h2 id="confirm-delete-title" className="text-lg font-semibold text-gray-900">
+              {title || "Delete item"}
+            </h2>
+          </div>
+          <p id="confirm-delete-desc" className="mt-3 text-sm text-gray-600">
+            {message || "Are you sure you want to delete this item? This action cannot be undone."}
+          </p>
+        </div>
+        <div className="flex justify-end gap-3 border-t bg-gray-50 p-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="px-4 py-2 rounded-md border bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {loading ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const City = () => {
   const [view, setView] = useState("list") // 'list' or 'form'
   const [cities, setCities] = useState([])
@@ -29,6 +82,9 @@ const City = () => {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+  // Confirmation modal state
+  const [confirm, setConfirm] = useState({ open: false, id: null, name: "" })
 
   useEffect(() => {
     fetchCities()
@@ -73,7 +129,7 @@ const City = () => {
     } catch (e) {
       console.error("Error fetching cities:", e)
       setCities([])
-      setError(e?.message || "Failed to fetch cities")
+      setError(e?.response?.data?.message || e?.message || "Failed to fetch cities")
     } finally {
       setLoading(false)
     }
@@ -95,28 +151,6 @@ const City = () => {
     } catch (e) {
       console.error("Error fetching states:", e)
     }
-  }
-
-  // --- Lookup helpers ---
-  const getCountryNameById = (id) => {
-    const idStr = sid(id)
-    const c = countries.find((x) => sid(x?._id ?? x?.id) === idStr)
-    return c?.countryName || "-"
-  }
-  const getStateNameById = (id) => {
-    const idStr = sid(id)
-    const s = states.find((x) => sid(x?._id ?? x?.id) === idStr)
-    return s?.stateName || "-"
-  }
-  const getDisplayCountryName = (countryField) => {
-    if (!countryField) return "-"
-    if (typeof countryField === "object") return countryField.countryName || "-"
-    return getCountryNameById(countryField)
-  }
-  const getDisplayStateName = (stateField) => {
-    if (!stateField) return "-"
-    if (typeof stateField === "object") return stateField.stateName || "-"
-    return getStateNameById(stateField)
   }
 
   // --- Form ---
@@ -142,7 +176,7 @@ const City = () => {
       resetForm()
     } catch (e) {
       console.error("Error saving city:", e)
-      setError(e?.message || "Failed to save city")
+      setError(e?.response?.data?.message || e?.message || "Failed to save city")
     } finally {
       setLoading(false)
     }
@@ -169,9 +203,36 @@ const City = () => {
     setView("form")
   }
 
-  const handleDelete = (id) => {
-    const idStr = sid(id)
-    setCities((prev) => prev.filter((c) => sid(c?._id ?? c?.id) !== idStr))
+  // --- Delete flow (modal + optimistic) ---
+  const promptDelete = (id, name = "") => setConfirm({ open: true, id, name })
+
+  const performDelete = async () => {
+    const id = confirm.id
+    if (!id) return
+
+    setError("")
+    setLoading(true)
+
+    // optimistic update
+    const prevCities = cities
+    setCities((prev) => prev.filter((c) => sid(c?._id ?? c?.id) !== sid(id)))
+
+    try {
+      await citiesAPI.delete(id)
+      await fetchCities() // ensure truth with backend
+      if (editingCity?._id && sid(editingCity._id) === sid(id)) {
+        resetForm()
+      }
+      setConfirm({ open: false, id: null, name: "" })
+    } catch (e) {
+      console.error("Error deleting city:", e)
+      setError(e?.response?.data?.message || e?.message || "Failed to delete city")
+      // rollback
+      setCities(prevCities)
+      setConfirm({ open: false, id: null, name: "" })
+    } finally {
+      setLoading(false)
+    }
   }
 
   // States limited to selected country in dropdown
@@ -187,31 +248,83 @@ const City = () => {
   const list = Array.isArray(cities) ? cities : []
   const filteredCities = list.filter((city) => {
     const cityName = (city?.cityName || "").toLowerCase()
-    const stateName = getDisplayStateName(city?.state).toLowerCase()
-    const countryName = getDisplayCountryName(city?.country).toLowerCase()
+    const stateName = (getDisplayStateName(city?.state) || "").toLowerCase()
+    const countryName = (getDisplayCountryName(city?.country) || "").toLowerCase()
     const term = searchTerm.toLowerCase()
     return cityName.includes(term) || stateName.includes(term) || countryName.includes(term)
   })
+
+  // --- Lookup helpers ---
+  function getCountryNameById(id) {
+    const idStr = sid(id)
+    const c = countries.find((x) => sid(x?._id ?? x?.id) === idStr)
+    return c?.countryName || "-"
+  }
+  function getStateNameById(id) {
+    const idStr = sid(id)
+    const s = states.find((x) => sid(x?._id ?? x?.id) === idStr)
+    return s?.stateName || "-"
+  }
+  function getDisplayCountryName(countryField) {
+    if (!countryField) return "-"
+    if (typeof countryField === "object") return countryField.countryName || "-"
+    return getCountryNameById(countryField)
+  }
+  function getDisplayStateName(stateField) {
+    if (!stateField) return "-"
+    if (typeof stateField === "object") return stateField.stateName || "-"
+    return getStateNameById(stateField)
+  }
 
   if (view === "form") {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-gray-900">City</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">
+            {editingCity?._id ? "Edit City" : "Create City"}
+          </h1>
           <div className="flex space-x-2">
-            <button className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            {/* New */}
+            <button
+              onClick={() => {
+                setEditingCity(null)
+                setFormData({ countryId: "", stateId: "", cityName: "" })
+              }}
+              className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
+              title="New city"
+            >
               <Plus className="w-4 h-4" />
             </button>
-            <button className="p-2 bg-red-600 text-white rounded hover:bg-red-700">
+
+            {/* Delete current (opens modal) */}
+            <button
+              onClick={() =>
+                editingCity?._id && promptDelete(sid(editingCity._id), editingCity?.cityName || "")
+              }
+              className="p-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+              disabled={!editingCity?._id || loading}
+              title="Delete this city"
+            >
               <Trash2 className="w-4 h-4" />
             </button>
-            <button className="p-2 bg-green-600 text-white rounded hover:bg-green-700">
+
+            {/* Decorative/search affordance */}
+            <button
+              className="p-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+              disabled={loading}
+              title="Search"
+            >
               <Search className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">{error}</div>}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -289,7 +402,7 @@ const City = () => {
             <button
               type="button"
               onClick={resetForm}
-              className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:opacity-50"
               disabled={loading}
             >
               Cancel
@@ -314,6 +427,20 @@ const City = () => {
             </div>
           </div>
         </div>
+
+        {/* Delete confirmation modal */}
+        <ConfirmDeleteModal
+          open={confirm.open}
+          title="Delete city"
+          message={
+            confirm.name
+              ? `Are you sure you want to delete “${confirm.name}”? This action cannot be undone.`
+              : "Are you sure you want to delete this city? This action cannot be undone."
+          }
+          onCancel={() => setConfirm({ open: false, id: null, name: "" })}
+          onConfirm={performDelete}
+          loading={loading}
+        />
       </div>
     )
   }
@@ -323,13 +450,21 @@ const City = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">City</h1>
         <div className="flex space-x-2">
-          <button onClick={() => setView("form")} className="p-2 bg-green-600 text-white rounded hover:bg-green-700">
+          <button
+            onClick={() => setView("form")}
+            className="p-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+            disabled={loading}
+          >
             <Plus className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">{error}</div>}
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 border-b">
@@ -376,26 +511,34 @@ const City = () => {
                   const created = toDisplayDateTime(city?.createdAt)
                   const updated = toDisplayDateTime(city?.updatedAt)
                   // IMPORTANT: your API uses `iscityActive`
-                  const isActive = toBool(city?.iscityActive ?? city?.isCityActive ?? city?.isActive ?? city?.status)
+                  const isActive = toBool(
+                    city?.iscityActive ?? city?.isCityActive ?? city?.isActive ?? city?.status
+                  )
                   return (
                     <tr key={id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <div className="flex space-x-2">
                           <button
-                            onClick={() => handleDelete(id)}
-                            className="p-1 text-red-600 hover:bg-red-100 rounded"
+                            onClick={() => id && promptDelete(id, city?.cityName || "")}
+                            className="p-1 text-red-600 hover:bg-red-100 rounded disabled:opacity-50"
                             title="Delete"
+                            disabled={!id || loading}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleEdit(city)}
-                            className="p-1 text-green-600 hover:bg-green-100 rounded"
+                            className="p-1 text-green-600 hover:bg-green-100 rounded disabled:opacity-50"
                             title="Edit"
+                            disabled={loading}
                           >
                             <Edit className="w-4 h-4" />
                           </button>
-                          <button className="p-1 text-blue-600 hover:bg-blue-100 rounded" title="View">
+                          <button
+                            className="p-1 text-blue-600 hover:bg-blue-100 rounded disabled:opacity-50"
+                            title="View"
+                            disabled={loading}
+                          >
                             <Eye className="w-4 h-4" />
                           </button>
                         </div>
@@ -453,6 +596,20 @@ const City = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation modal */}
+      <ConfirmDeleteModal
+        open={confirm.open}
+        title="Delete city"
+        message={
+          confirm.name
+            ? `Are you sure you want to delete “${confirm.name}”? This action cannot be undone.`
+            : "Are you sure you want to delete this city? This action cannot be undone."
+        }
+        onCancel={() => setConfirm({ open: false, id: null, name: "" })}
+        onConfirm={performDelete}
+        loading={loading}
+      />
     </div>
   )
 }

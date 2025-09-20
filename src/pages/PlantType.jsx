@@ -1,3 +1,4 @@
+// src/pages/PlantType.jsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -19,6 +20,65 @@ const asArray = (res) => {
   return []
 }
 
+/** Simple confirmation modal (no external libs) */
+const ConfirmDeleteModal = ({ open, title, message, onCancel, onConfirm, loading }) => {
+  if (!open) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-delete-title"
+      aria-describedby="confirm-delete-desc"
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50" onClick={loading ? undefined : onCancel} />
+
+      {/* Dialog */}
+      <div className="relative w-full max-w-md rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
+        <div className="p-6">
+          <div className="flex items-center justify-between">
+            <h2 id="confirm-delete-title" className="text-lg font-semibold text-gray-900">
+              {title || "Delete item"}
+            </h2>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={loading}
+              className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+              aria-label="Close"
+            >
+              <X size={22} />
+            </button>
+          </div>
+          <p id="confirm-delete-desc" className="mt-3 text-sm text-gray-600">
+            {message || "Are you sure you want to delete this item? This action cannot be undone."}
+          </p>
+        </div>
+        <div className="flex justify-end gap-3 border-t bg-gray-50 p-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="px-4 py-2 rounded-md border bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2"
+          >
+            <Trash2 size={16} />
+            {loading ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PlantType() {
   const [plantTypes, setPlantTypes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -27,6 +87,10 @@ export default function PlantType() {
   const [formData, setFormData] = useState({ plantType: "" })
   const [editingId, setEditingId] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+
+  // delete-confirmation modal state
+  const [confirm, setConfirm] = useState({ open: false, id: null, name: "" })
+  const [deleting, setDeleting] = useState(false)
 
   // --- data load ---
   const fetchPlantTypes = async () => {
@@ -83,7 +147,16 @@ export default function PlantType() {
       handleCancel()
     } catch (err) {
       console.error("Error saving plant type:", err)
-      setError(err?.message || "Failed to save plant type")
+      const backendMsg = err?.response?.data?.message || err?.message || ""
+
+      // Workaround: backend creates successfully but replies with a "Cast to ObjectId failed" error
+      if (/Cast to ObjectId failed/i.test(backendMsg)) {
+        await fetchPlantTypes() // refresh list to include the newly created item
+        handleCancel()          // close the modal and clear error banner
+        return
+      }
+
+      setError(backendMsg || "Failed to save plant type")
     } finally {
       setSubmitting(false)
     }
@@ -96,15 +169,40 @@ export default function PlantType() {
     setError("")
   }
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this plant type?")) return
+  // Open confirmation modal instead of alert
+  const handleDelete = (id, name = "") => {
+    setConfirm({ open: true, id, name })
+  }
+
+  // Called from modal's Delete button
+  const performDelete = async () => {
+    const id = confirm.id
+    if (!id) return
     try {
+      setDeleting(true)
+      setError("")
       if (!isValidObjectId(id)) throw new Error("Invalid plant type id")
-      await plantTypesAPI.delete(id)
-      await fetchPlantTypes()
+
+      // optimistic remove
+      const prev = plantTypes
+      setPlantTypes((p) => p.filter((x) => x.id !== id))
+
+      try {
+        await plantTypesAPI.delete(id)
+        await fetchPlantTypes() // ensure server truth
+        if (editingId === id) handleCancel()
+      } catch (err) {
+        // rollback on failure
+        setPlantTypes(prev)
+        throw err
+      } finally {
+        setConfirm({ open: false, id: null, name: "" })
+      }
     } catch (err) {
       console.error("Error deleting plant type:", err)
-      setError(err?.message || "Failed to delete plant type")
+      setError(err?.response?.data?.message || err?.message || "Failed to delete plant type")
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -135,7 +233,7 @@ export default function PlantType() {
         <button
           onClick={handleStartCreate}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
-          disabled={submitting}
+          disabled={submitting || deleting}
         >
           <Plus size={20} />
           Add Plant Type
@@ -150,10 +248,12 @@ export default function PlantType() {
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">{editingId ? "Edit Plant Type" : "Add New Plant Type"}</h2>
+              <h2 className="text-xl font-semibold">
+                {editingId ? "Edit Plant Type" : "Add New Plant Type"}
+              </h2>
               <button onClick={handleCancel} className="text-gray-400 hover:text-gray-600" disabled={submitting}>
                 <X size={24} />
               </button>
@@ -204,7 +304,9 @@ export default function PlantType() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Plant Type
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Status
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
@@ -230,7 +332,7 @@ export default function PlantType() {
               plantTypes.map((plantType) => (
                 <tr key={plantType.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {plantType.plantType.toUpperCase()}
+                    {String(plantType.plantType || "").toUpperCase()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
@@ -246,14 +348,16 @@ export default function PlantType() {
                       <button
                         onClick={() => handleEdit(plantType)}
                         className="text-blue-600 hover:text-blue-900 p-1 rounded disabled:opacity-50"
-                        disabled={submitting}
+                        disabled={submitting || deleting}
+                        title="Edit"
                       >
                         <Edit size={16} />
                       </button>
                       <button
-                        onClick={() => handleDelete(plantType.id)}
+                        onClick={() => handleDelete(plantType.id, plantType.plantType)}
                         className="text-red-600 hover:text-red-900 p-1 rounded disabled:opacity-50"
-                        disabled={submitting}
+                        disabled={submitting || deleting}
+                        title="Delete"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -265,6 +369,20 @@ export default function PlantType() {
           </tbody>
         </table>
       </div>
+
+      {/* Delete confirmation modal */}
+      <ConfirmDeleteModal
+        open={confirm.open}
+        title="Delete plant type"
+        message={
+          confirm.name
+            ? `Are you sure you want to delete “${confirm.name}”? This action cannot be undone.`
+            : "Are you sure you want to delete this plant type? This action cannot be undone."
+        }
+        onCancel={() => setConfirm({ open: false, id: null, name: "" })}
+        onConfirm={performDelete}
+        loading={deleting}
+      />
     </div>
   )
 }

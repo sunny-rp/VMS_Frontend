@@ -1,7 +1,8 @@
+// src/pages/Area.jsx
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Plus, Search, Edit, Trash2, Eye, FileText, Download } from "lucide-react"
+import { Plus, Search, Edit, Trash2, Eye, FileText, Download, X } from "lucide-react"
 import { areasAPI, plantsAPI } from "../services/api"
 
 /* ---------------- helpers ---------------- */
@@ -39,16 +40,78 @@ const normalizeArea = (a) => {
   }
 }
 
+/* ---------------- confirmation modal ---------------- */
+const ConfirmDeleteModal = ({ open, title, message, onCancel, onConfirm, loading }) => {
+  if (!open) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-delete-title"
+      aria-describedby="confirm-delete-desc"
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50" onClick={loading ? undefined : onCancel} />
+      {/* Dialog */}
+      <div className="relative w-full max-w-md rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
+        <div className="p-6">
+          <div className="flex items-center justify-between">
+            <h2 id="confirm-delete-title" className="text-lg font-semibold text-gray-900">
+              {title || "Delete item"}
+            </h2>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={loading}
+              className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+              aria-label="Close"
+            >
+              <X size={22} />
+            </button>
+          </div>
+          <p id="confirm-delete-desc" className="mt-3 text-sm text-gray-600">
+            {message || "Are you sure you want to delete this item? This action cannot be undone."}
+          </p>
+        </div>
+        <div className="flex justify-end gap-3 border-t bg-gray-50 p-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="px-4 py-2 rounded-md border bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2"
+          >
+            <Trash2 size={16} />
+            {loading ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ---------------- component ---------------- */
 const Area = () => {
   const [showForm, setShowForm] = useState(false)
   const [areas, setAreas] = useState([])
   const [plants, setPlants] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false)   // used for fetch/save
+  const [deleting, setDeleting] = useState(false) // used for delete flow
   const [error, setError] = useState("")
   const [formData, setFormData] = useState({ areaName: "", plantId: "" })
   const [editingId, setEditingId] = useState(null)
+
+  // delete-confirmation modal state
+  const [confirm, setConfirm] = useState({ open: false, id: null, name: "" })
 
   useEffect(() => {
     fetchAreas()
@@ -140,17 +203,37 @@ const Area = () => {
     setError("")
   }
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this area?")) return
+  // open confirmation modal (instead of alert)
+  const promptDelete = (id, name = "") => setConfirm({ open: true, id, name })
+
+  // delete action from modal
+  const performDelete = async () => {
+    const id = confirm.id
+    if (!id) return
     try {
-      setLoading(true)
-      await areasAPI.delete(id)
-      await fetchAreas()
+      setDeleting(true)
+      setError("")
+      if (!isObjectId(id)) throw new Error("Invalid area id")
+
+      // optimistic update
+      const prev = areas
+      setAreas((list) => list.filter((a) => a.id !== id))
+
+      try {
+        await areasAPI.delete(id)
+        await fetchAreas() // ensure server truth
+      } catch (e) {
+        // rollback on failure
+        setAreas(prev)
+        throw e
+      } finally {
+        setConfirm({ open: false, id: null, name: "" })
+      }
     } catch (e) {
       console.error("Error deleting area:", e)
-      setError(e?.response?.data?.message || "Failed to delete area")
+      setError(e?.response?.data?.message || e?.message || "Failed to delete area")
     } finally {
-      setLoading(false)
+      setDeleting(false)
     }
   }
 
@@ -170,10 +253,10 @@ const Area = () => {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-gray-900">Area</h1>
           <div className="flex space-x-2">
-            <button className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700" type="button">
+            <button className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700" type="button" disabled={loading || deleting}>
               <FileText className="w-4 h-4" />
             </button>
-            <button className="p-2 bg-orange-600 text-white rounded hover:bg-orange-700" type="button">
+            <button className="p-2 bg-orange-600 text-white rounded hover:bg-orange-700" type="button" disabled={loading || deleting}>
               <Download className="w-4 h-4" />
             </button>
           </div>
@@ -197,7 +280,7 @@ const Area = () => {
                 onChange={(e) => setFormData({ ...formData, areaName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
-                disabled={loading}
+                disabled={loading || deleting}
               />
             </div>
 
@@ -210,7 +293,7 @@ const Area = () => {
                 onChange={(e) => setFormData({ ...formData, plantId: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
-                disabled={loading}
+                disabled={loading || deleting}
               >
                 <option value="">Select Plant</option>
                 {plants.map((p) => (
@@ -225,7 +308,7 @@ const Area = () => {
           <div className="flex space-x-4 pt-4">
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || deleting}
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
             >
               {loading ? "Saving..." : editingId ? "Update" : "Save"}
@@ -238,8 +321,8 @@ const Area = () => {
                 setFormData({ areaName: "", plantId: "" })
                 setError("")
               }}
-              className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
-              disabled={loading}
+              className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+              disabled={loading || deleting}
             >
               Cancel
             </button>
@@ -263,6 +346,20 @@ const Area = () => {
             </div>
           </div>
         </div>
+
+        {/* Delete confirmation modal (available in form view as well) */}
+        <ConfirmDeleteModal
+          open={confirm.open}
+          title="Delete area"
+          message={
+            confirm.name
+              ? `Are you sure you want to delete “${confirm.name}”? This action cannot be undone.`
+              : "Are you sure you want to delete this area? This action cannot be undone."
+          }
+          onCancel={() => setConfirm({ open: false, id: null, name: "" })}
+          onConfirm={performDelete}
+          loading={deleting}
+        />
       </div>
     )
   }
@@ -274,7 +371,8 @@ const Area = () => {
         <h1 className="text-2xl font-semibold text-gray-900">Area</h1>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+          disabled={loading || deleting}
         >
           <Plus className="w-4 h-4" />
         </button>
@@ -296,10 +394,10 @@ const Area = () => {
               />
             </div>
             <div className="flex space-x-2">
-              <button className="p-2 bg-green-600 text-white rounded hover:bg-green-700" type="button">
+              <button className="p-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50" type="button" disabled={loading || deleting}>
                 <FileText className="w-4 h-4" />
               </button>
-              <button className="p-2 bg-orange-600 text-white rounded hover:bg-orange-700" type="button">
+              <button className="p-2 bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50" type="button" disabled={loading || deleting}>
                 <Download className="w-4 h-4" />
               </button>
             </div>
@@ -331,20 +429,22 @@ const Area = () => {
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex space-x-2">
                         <button
-                          onClick={() => handleDelete(area.id)}
-                          className="p-1 text-red-600 hover:bg-red-100 rounded"
+                          onClick={() => promptDelete(area.id, area.areaName)}
+                          className="p-1 text-red-600 hover:bg-red-100 rounded disabled:opacity-50"
                           title="Delete"
+                          disabled={loading || deleting}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleEdit(area)}
-                          className="p-1 text-green-600 hover:bg-green-100 rounded"
+                          className="p-1 text-green-600 hover:bg-green-100 rounded disabled:opacity-50"
                           title="Edit"
+                          disabled={loading || deleting}
                         >
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button className="p-1 text-blue-600 hover:bg-blue-100 rounded" title="View">
+                        <button className="p-1 text-blue-600 hover:bg-blue-100 rounded disabled:opacity-50" title="View" disabled={loading || deleting}>
                           <Eye className="w-4 h-4" />
                         </button>
                       </div>
@@ -372,17 +472,31 @@ const Area = () => {
             Showing 1 to {filteredAreas.length} of {filteredAreas.length} Entries
           </div>
           <div className="flex items-center space-x-2">
-            <button className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">«</button>
-            <button className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">‹</button>
+            <button className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50" disabled>«</button>
+            <button className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50" disabled>‹</button>
             <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded">1</button>
-            <button className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">›</button>
-            <button className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">»</button>
-            <select className="ml-2 px-2 py-1 text-sm border border-gray-300 rounded">
+            <button className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50" disabled>›</button>
+            <button className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50" disabled>»</button>
+            <select className="ml-2 px-2 py-1 text-sm border border-gray-300 rounded" disabled>
               <option>10</option><option>25</option><option>50</option>
             </select>
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation modal */}
+      <ConfirmDeleteModal
+        open={confirm.open}
+        title="Delete area"
+        message={
+          confirm.name
+            ? `Are you sure you want to delete “${confirm.name}”? This action cannot be undone.`
+            : "Are you sure you want to delete this area? This action cannot be undone."
+        }
+        onCancel={() => setConfirm({ open: false, id: null, name: "" })}
+        onConfirm={performDelete}
+        loading={deleting}
+      />
     </div>
   )
 }

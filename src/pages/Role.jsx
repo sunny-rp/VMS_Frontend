@@ -1,7 +1,8 @@
+// src/pages/Role.jsx
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Plus, Edit, Trash2, Eye } from "lucide-react"
+import { Search, Plus, Edit, Trash2, Eye, X } from "lucide-react"
 import { rolesAPI } from "../services/api"
 
 // Display helper
@@ -22,14 +23,76 @@ const asRoleArray = (res) => {
   return []
 }
 
+/** Simple confirmation modal */
+const ConfirmDeleteModal = ({ open, title, message, onCancel, onConfirm, loading }) => {
+  if (!open) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-delete-title"
+      aria-describedby="confirm-delete-desc"
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50" onClick={loading ? undefined : onCancel} />
+      {/* Dialog */}
+      <div className="relative w-full max-w-md rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
+        <div className="p-6">
+          <div className="flex items-center justify-between">
+            <h2 id="confirm-delete-title" className="text-lg font-semibold text-gray-900">
+              {title || "Delete item"}
+            </h2>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={loading}
+              className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+              aria-label="Close"
+            >
+              <X size={22} />
+            </button>
+          </div>
+          <p id="confirm-delete-desc" className="mt-3 text-sm text-gray-600">
+            {message || "Are you sure you want to delete this item? This action cannot be undone."}
+          </p>
+        </div>
+        <div className="flex justify-end gap-3 border-t bg-gray-50 p-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="px-4 py-2 rounded-md border bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2"
+          >
+            <Trash2 size={16} />
+            {loading ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Role() {
   const [showForm, setShowForm] = useState(false)
   const [roles, setRoles] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [editingRole, setEditingRole] = useState(null)
   const [formData, setFormData] = useState({ roleName: "" })
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false)   // fetch/save
+  const [deleting, setDeleting] = useState(false) // delete action
   const [error, setError] = useState("")
+
+  // delete-modal state
+  const [confirm, setConfirm] = useState({ open: false, id: null, name: "" })
 
   useEffect(() => {
     fetchRoles()
@@ -41,7 +104,7 @@ export default function Role() {
       setError("")
       const response = await rolesAPI.getAll()
       const list = asRoleArray(response)
-      setRoles(list)
+      setRoles(Array.isArray(list) ? list : [])
       if (!Array.isArray(list)) {
         console.warn("Unexpected roles response:", response)
         setError("Unexpected roles response format.")
@@ -71,14 +134,14 @@ export default function Role() {
         // ✅ PATCH /user/roles/edit-role/:roleId
         await rolesAPI.update(editingRole._id, { roleName: formData.roleName })
       } else {
-        // Assuming your backend POST /user/roles/create-role
+        // ✅ POST /user/roles/create-role (assumed)
         await rolesAPI.create({ roleName: formData.roleName })
       }
       await fetchRoles()
       resetForm()
     } catch (err) {
       console.error("Error saving role:", err)
-      setError(err?.message || "Failed to save role")
+      setError(err?.response?.data?.message || err?.message || "Failed to save role")
     } finally {
       setLoading(false)
     }
@@ -90,19 +153,42 @@ export default function Role() {
     setShowForm(true)
   }
 
-  const handleDelete = async (id) => {
+  // open confirm modal
+  const askDelete = (role) => {
+    const id = role?._id || role?.id
+    const name = role?.roleName || ""
+    setConfirm({ open: true, id, name })
+  }
+
+  // perform delete (optimistic + rollback)
+  const performDelete = async () => {
+    const id = confirm.id
+    if (!id) {
+      setConfirm({ open: false, id: null, name: "" })
+      return
+    }
     try {
-      setLoading(true)
+      setDeleting(true)
       setError("")
-      // If you have a delete endpoint exposed, prefer it:
-      // await rolesAPI.delete(id)
-      // For now, optimistically remove from UI:
-      setRoles((prev) => prev.filter((r) => r._id !== id))
+      const previous = roles
+      // optimistic UI
+      setRoles((prev) => prev.filter((r) => (r?._id || r?.id) !== id))
+      try {
+        // ✅ DELETE /user/roles/delete-role/:roleId
+        await rolesAPI.delete(id)
+        await fetchRoles() // ensure server truth
+      } catch (err) {
+        // rollback
+        setRoles(previous)
+        throw err
+      } finally {
+        setConfirm({ open: false, id: null, name: "" })
+      }
     } catch (err) {
       console.error("Error deleting role:", err)
-      setError(err?.message || "Failed to delete role")
+      setError(err?.response?.data?.message || err?.message || "Failed to delete role")
     } finally {
-      setLoading(false)
+      setDeleting(false)
     }
   }
 
@@ -118,14 +204,21 @@ export default function Role() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-gray-900">Role</h1>
           <div className="flex gap-2">
-            <button className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-              <Plus className="w-4 h-4" />
+            <button
+              onClick={resetForm}
+              className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              disabled={loading || deleting}
+              type="button"
+            >
+              Cancel
             </button>
-            <button className="p-2 bg-red-600 text-white rounded hover:bg-red-700">
-              <Trash2 className="w-4 h-4" />
-            </button>
-            <button className="p-2 bg-green-600 text-white rounded hover:bg-green-700">
-              <Search className="w-4 h-4" />
+            <button
+              onClick={handleSubmit}
+              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading || deleting}
+              type="button"
+            >
+              {loading ? "Saving..." : editingRole ? "Update" : "Save"}
             </button>
           </div>
         </div>
@@ -144,7 +237,7 @@ export default function Role() {
                 onChange={(e) => setFormData({ ...formData, roleName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
-                disabled={loading}
+                disabled={loading || deleting}
               />
             </div>
           </div>
@@ -153,7 +246,7 @@ export default function Role() {
             <button
               type="submit"
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-              disabled={loading}
+              disabled={loading || deleting}
             >
               {loading ? "Saving..." : editingRole ? "Update" : "Save"}
             </button>
@@ -161,7 +254,7 @@ export default function Role() {
               type="button"
               onClick={resetForm}
               className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-              disabled={loading}
+              disabled={loading || deleting}
             >
               Cancel
             </button>
@@ -196,7 +289,8 @@ export default function Role() {
         <h1 className="text-2xl font-semibold text-gray-900">Role</h1>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+          disabled={loading || deleting}
         >
           <Plus className="w-4 h-4" />
         </button>
@@ -240,7 +334,7 @@ export default function Role() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {(Array.isArray(filteredRoles) ? filteredRoles : []).map((role) => {
-                const id = role?._id
+                const id = role?._id || role?.id
                 const nameUpper = (role?.roleName || "").toUpperCase()
                 const created = toDisplayDateTime(role?.createdAt)
                 const updated = toDisplayDateTime(role?.updatedAt)
@@ -250,20 +344,22 @@ export default function Role() {
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex gap-2">
                         <button
-                          onClick={() => handleDelete(id)}
-                          className="p-1 text-red-600 hover:bg-red-100 rounded"
+                          onClick={() => askDelete(role)}
+                          className="p-1 text-red-600 hover:bg-red-100 rounded disabled:opacity-50"
                           title="Delete"
+                          disabled={loading || deleting}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleEdit(role)}
-                          className="p-1 text-green-600 hover:bg-green-100 rounded"
+                          className="p-1 text-green-600 hover:bg-green-100 rounded disabled:opacity-50"
                           title="Edit"
+                          disabled={loading || deleting}
                         >
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button className="p-1 text-blue-600 hover:bg-blue-100 rounded" title="View">
+                        <button className="p-1 text-blue-600 hover:bg-blue-100 rounded disabled:opacity-50" title="View" disabled={loading || deleting}>
                           <Eye className="w-4 h-4" />
                         </button>
                       </div>
@@ -298,6 +394,20 @@ export default function Role() {
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation modal */}
+      <ConfirmDeleteModal
+        open={confirm.open}
+        title="Delete role"
+        message={
+          confirm.name
+            ? `Are you sure you want to delete “${confirm.name}”? This action cannot be undone.`
+            : "Are you sure you want to delete this role? This action cannot be undone."
+        }
+        onCancel={() => setConfirm({ open: false, id: null, name: "" })}
+        onConfirm={performDelete}
+        loading={deleting}
+      />
 
       {/* Decorative cube */}
       <div className="fixed bottom-8 right-8">

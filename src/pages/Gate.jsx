@@ -1,7 +1,8 @@
+// src/pages/Gate.jsx
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Search, Plus, Edit, Trash2, Eye } from "lucide-react"
+import { Search, Plus, Edit, Trash2, Eye, X } from "lucide-react"
 import { gatesAPI, plantsAPI, usersAPI } from "../services/api"
 
 /* ======================== helpers ======================== */
@@ -62,6 +63,66 @@ const normalizeGateForList = (g) => {
   }
 }
 
+/* ======================== confirmation modal ======================== */
+
+const ConfirmDeleteModal = ({ open, title, message, onCancel, onConfirm, loading }) => {
+  if (!open) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-delete-title"
+      aria-describedby="confirm-delete-desc"
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50" onClick={loading ? undefined : onCancel} />
+
+      {/* Dialog */}
+      <div className="relative w-full max-w-md rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
+        <div className="p-6">
+          <div className="flex items-center justify-between">
+            <h2 id="confirm-delete-title" className="text-lg font-semibold text-gray-900">
+              {title || "Delete item"}
+            </h2>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={loading}
+              className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+              aria-label="Close"
+            >
+              <X size={22} />
+            </button>
+          </div>
+          <p id="confirm-delete-desc" className="mt-3 text-sm text-gray-600">
+            {message || "Are you sure you want to delete this item? This action cannot be undone."}
+          </p>
+        </div>
+        <div className="flex justify-end gap-3 border-t bg-gray-50 p-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="px-4 py-2 rounded-md border bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2"
+          >
+            <Trash2 size={16} />
+            {loading ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ======================== component ======================== */
 
 const Gate = () => {
@@ -71,11 +132,15 @@ const Gate = () => {
   const [users, setUsers] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState("")
 
   const [editingGate, setEditingGate] = useState(null)
 
-  // Form state — now stores **IDs** for plant/incharge/security
+  // Delete-confirmation modal state
+  const [confirm, setConfirm] = useState({ open: false, id: null, name: "" })
+
+  // Form state — stores **IDs** for plant/incharge/security
   const [formData, setFormData] = useState({
     gateName: "",
     gateNumber: "",
@@ -157,7 +222,7 @@ const Gate = () => {
       resetForm()
       setView("list")
     } catch (e) {
-      setError(e?.message || "Failed to save gate")
+      setError(e?.response?.data?.message || e?.message || "Failed to save gate")
     } finally {
       setLoading(false)
     }
@@ -178,6 +243,7 @@ const Gate = () => {
 
   const handleAddNew = () => {
     resetForm()
+    setError("")
     setView("form")
   }
 
@@ -191,23 +257,41 @@ const Gate = () => {
       gateInchargeId: row.gateInchargeId || "",
       gateSecurityId: row.gateSecurityId || "",
       // Editing times: if API returns "11:30 AM", we can’t prefill datetime-local.
-      // Leave blank or you may parse to a datetime here if you store ISO in your backend.
       gateOpenTime: "",
       gateCloseTime: "",
     })
+    setError("")
     setView("form")
   }
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this gate?")) return
+  // open modal instead of alert
+  const promptDelete = (id, name = "") => setConfirm({ open: true, id, name })
+
+  // delete action from modal (optimistic + rollback)
+  const performDelete = async () => {
+    const id = confirm.id
+    if (!id) return
     try {
-      setLoading(true)
-      await gatesAPI.delete(id)
-      setGates((prev) => prev.filter((g) => g.id !== id))
+      setDeleting(true)
+      setError("")
+
+      // optimistic
+      const prev = gates
+      setGates((rows) => rows.filter((g) => g.id !== id))
+
+      try {
+        await gatesAPI.delete(id)
+        await fetchAll() // ensure server truth
+      } catch (e) {
+        setGates(prev) // rollback on failure
+        throw e
+      } finally {
+        setConfirm({ open: false, id: null, name: "" })
+      }
     } catch (e) {
-      setError(e?.message || "Failed to delete gate")
+      setError(e?.response?.data?.message || e?.message || "Failed to delete gate")
     } finally {
-      setLoading(false)
+      setDeleting(false)
     }
   }
 
@@ -232,15 +316,15 @@ const Gate = () => {
           <div className="flex space-x-2">
             <button
               onClick={() => setView("list")}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-              disabled={loading}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50"
+              disabled={loading || deleting}
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              disabled={loading}
+              disabled={loading || deleting}
             >
               {loading ? "Saving..." : editingGate ? "Update" : "Save"}
             </button>
@@ -265,7 +349,7 @@ const Gate = () => {
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
-                disabled={loading}
+                disabled={loading || deleting}
               />
             </div>
 
@@ -281,7 +365,7 @@ const Gate = () => {
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
-                disabled={loading}
+                disabled={loading || deleting}
               />
             </div>
 
@@ -296,7 +380,7 @@ const Gate = () => {
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
-                disabled={loading}
+                disabled={loading || deleting}
               >
                 <option value="">SELECT PLANT</option>
                 {plantOptions}
@@ -311,7 +395,7 @@ const Gate = () => {
                 value={formData.gateInchargeId}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={loading}
+                disabled={loading || deleting}
               >
                 <option value="">SELECT INCHARGE</option>
                 {userOptions}
@@ -326,7 +410,7 @@ const Gate = () => {
                 value={formData.gateSecurityId}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={loading}
+                disabled={loading || deleting}
               >
                 <option value="">SELECT SECURITY</option>
                 {userOptions}
@@ -345,7 +429,7 @@ const Gate = () => {
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
-                disabled={loading}
+                disabled={loading || deleting}
               />
             </div>
 
@@ -361,7 +445,7 @@ const Gate = () => {
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
-                disabled={loading}
+                disabled={loading || deleting}
               />
             </div>
           </div>
@@ -370,20 +454,34 @@ const Gate = () => {
             <button
               type="button"
               onClick={() => setView("list")}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-              disabled={loading}
+              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              disabled={loading || deleting}
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || deleting}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
               {loading ? "Saving..." : editingGate ? "Update" : "Save"}
             </button>
           </div>
         </form>
+
+        {/* Delete confirmation modal available in form view too (if you add a delete button later) */}
+        <ConfirmDeleteModal
+          open={confirm.open}
+          title="Delete gate"
+          message={
+            confirm.name
+              ? `Are you sure you want to delete “${confirm.name}”? This action cannot be undone.`
+              : "Are you sure you want to delete this gate? This action cannot be undone."
+          }
+          onCancel={() => setConfirm({ open: false, id: null, name: "" })}
+          onConfirm={performDelete}
+          loading={deleting}
+        />
       </div>
     )
   }
@@ -396,7 +494,8 @@ const Gate = () => {
         <div className="flex space-x-2">
           <button
             onClick={handleAddNew}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            disabled={loading || deleting}
           >
             <Plus className="w-4 h-4" />
           </button>
@@ -451,18 +550,22 @@ const Gate = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex space-x-2">
                         <button
-                          onClick={() => handleDelete(g.id)}
-                          className="p-1 text-red-600 hover:text-red-900 bg-red-100 rounded"
+                          onClick={() => promptDelete(g.id, g.gateName)}
+                          className="p-1 text-red-600 hover:text-red-900 bg-red-100 rounded disabled:opacity-50"
+                          disabled={loading || deleting}
+                          title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleEdit(g)}
-                          className="p-1 text-green-600 hover:text-green-900 bg-green-100 rounded"
+                          className="p-1 text-green-600 hover:text-green-900 bg-green-100 rounded disabled:opacity-50"
+                          disabled={loading || deleting}
+                          title="Edit"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button className="p-1 text-blue-600 hover:text-blue-900 bg-blue-100 rounded">
+                        <button className="p-1 text-blue-600 hover:text-blue-900 bg-blue-100 rounded disabled:opacity-50" title="View" disabled={loading || deleting}>
                           <Eye className="w-4 h-4" />
                         </button>
                       </div>
@@ -511,6 +614,20 @@ const Gate = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation modal */}
+      <ConfirmDeleteModal
+        open={confirm.open}
+        title="Delete gate"
+        message={
+          confirm.name
+            ? `Are you sure you want to delete “${confirm.name}”? This action cannot be undone.`
+            : "Are you sure you want to delete this gate? This action cannot be undone."
+        }
+        onCancel={() => setConfirm({ open: false, id: null, name: "" })}
+        onConfirm={performDelete}
+        loading={deleting}
+      />
     </div>
   )
 }

@@ -13,6 +13,58 @@ const toDisplayDateTime = (iso) => {
 }
 const up = (s) => (s ? String(s).toUpperCase() : "-")
 
+/** Simple confirmation modal (no external libs) */
+const ConfirmDeleteModal = ({ open, title, message, onCancel, onConfirm, loading }) => {
+  if (!open) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-delete-title"
+      aria-describedby="confirm-delete-desc"
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50" onClick={loading ? undefined : onCancel} />
+
+      {/* Dialog */}
+      <div className="relative w-full max-w-md rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
+        <div className="p-6">
+          <div className="flex items-center gap-3">
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+              <Trash2 className="h-5 w-5 text-red-600" />
+            </div>
+            <h2 id="confirm-delete-title" className="text-lg font-semibold text-gray-900">
+              {title || "Delete item"}
+            </h2>
+          </div>
+          <p id="confirm-delete-desc" className="mt-3 text-sm text-gray-600">
+            {message || "Are you sure you want to delete this item? This action cannot be undone."}
+          </p>
+        </div>
+        <div className="flex justify-end gap-3 border-t bg-gray-50 p-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="px-4 py-2 rounded-md border bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {loading ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const State = () => {
   const [view, setView] = useState("list") // 'list' or 'form'
   const [states, setStates] = useState([])
@@ -20,11 +72,18 @@ const State = () => {
   const [searchTerm, setSearchTerm] = useState("")
   const [editingState, setEditingState] = useState(null)
   const [formData, setFormData] = useState({
-    countryId: "",   // store the country _id
+    countryId: "", // store the country _id
     stateName: "",
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+  // Confirmation modal state
+  const [confirm, setConfirm] = useState({
+    open: false,
+    id: null,
+    name: "",
+  })
 
   useEffect(() => {
     fetchStates()
@@ -52,7 +111,7 @@ const State = () => {
     } catch (e) {
       console.error("Error fetching states:", e)
       setStates([])
-      setError(e?.message || "Failed to fetch states")
+      setError(e?.response?.data?.message || e?.message || "Failed to fetch states")
     } finally {
       setLoading(false)
     }
@@ -62,9 +121,9 @@ const State = () => {
     try {
       const res = await countriesAPI.getAll()
       // Countries API: { statusCode, data:[{_id, countryName, ...}], ... }
-      const list = Array.isArray(res?.data) ? res.data : []
+      const list = Array.isArray(res?.data) ? res.data : Array.isArray(res?.data?.data) ? res.data.data : []
       setCountries(list)
-      if (!Array.isArray(res?.data)) {
+      if (!Array.isArray(list)) {
         console.warn("Unexpected countries response:", res)
       }
     } catch (e) {
@@ -93,7 +152,7 @@ const State = () => {
       resetForm()
     } catch (e) {
       console.error("Error saving state:", e)
-      setError(e?.message || "Failed to save state")
+      setError(e?.response?.data?.message || e?.message || "Failed to save state")
     } finally {
       setLoading(false)
     }
@@ -118,9 +177,39 @@ const State = () => {
     setView("form")
   }
 
-  const handleDelete = (id) => {
-    // local remove placeholder (wire real delete when needed)
+  /** Open confirmation modal (no alerts) */
+  const promptDelete = (id, name = "") => {
+    setConfirm({ open: true, id, name })
+  }
+
+  /** Actual delete (optimistic + rollback), invoked from the modal confirm button */
+  const performDelete = async () => {
+    const id = confirm.id
+    if (!id) return
+
+    setError("")
+    setLoading(true)
+
+    // optimistic update
+    const prevStates = states
     setStates((prev) => prev.filter((s) => (s?._id || s?.id) !== id))
+
+    try {
+      await statesAPI.delete(id)
+      await fetchStates() // ensure truth with backend
+      if (editingState?._id === id) {
+        resetForm()
+      }
+      setConfirm({ open: false, id: null, name: "" })
+    } catch (e) {
+      console.error("Error deleting state:", e)
+      setError(e?.response?.data?.message || e?.message || "Failed to delete state")
+      // rollback optimistic update
+      setStates(prevStates)
+      setConfirm({ open: false, id: null, name: "" })
+    } finally {
+      setLoading(false)
+    }
   }
 
   // country lookup helpers
@@ -150,21 +239,51 @@ const State = () => {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-gray-900">State</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">
+            {editingState?._id ? "Edit State" : "Create State"}
+          </h1>
           <div className="flex space-x-2">
-            <button className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            {/* New state */}
+            <button
+              onClick={() => {
+                setEditingState(null)
+                setFormData({ countryId: "", stateName: "" })
+              }}
+              className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
+              title="New state"
+            >
               <Plus className="w-4 h-4" />
             </button>
-            <button className="p-2 bg-red-600 text-white rounded hover:bg-red-700">
+
+            {/* Delete current state (opens modal) */}
+            <button
+              onClick={() =>
+                editingState?._id && promptDelete(editingState._id, editingState?.stateName || "")
+              }
+              className="p-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+              disabled={!editingState?._id || loading}
+              title="Delete this state"
+            >
               <Trash2 className="w-4 h-4" />
             </button>
-            <button className="p-2 bg-green-600 text-white rounded hover:bg-green-700">
+
+            {/* Decorative/search affordance */}
+            <button
+              className="p-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+              disabled={loading}
+              title="Search"
+            >
               <Search className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">{error}</div>}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -214,7 +333,7 @@ const State = () => {
             <button
               type="button"
               onClick={resetForm}
-              className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:opacity-50"
               disabled={loading}
             >
               Cancel
@@ -239,6 +358,20 @@ const State = () => {
             </div>
           </div>
         </div>
+
+        {/* Delete confirmation modal */}
+        <ConfirmDeleteModal
+          open={confirm.open}
+          title="Delete state"
+          message={
+            confirm.name
+              ? `Are you sure you want to delete “${confirm.name}”? This action cannot be undone.`
+              : "Are you sure you want to delete this state? This action cannot be undone."
+          }
+          onCancel={() => setConfirm({ open: false, id: null, name: "" })}
+          onConfirm={performDelete}
+          loading={loading}
+        />
       </div>
     )
   }
@@ -248,13 +381,22 @@ const State = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">State</h1>
         <div className="flex space-x-2">
-          <button onClick={() => setView("form")} className="p-2 bg-green-600 text-white rounded hover:bg-green-700">
+          <button
+            onClick={() => setView("form")}
+            className="p-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+            disabled={loading}
+            title="Create state"
+          >
             <Plus className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">{error}</div>}
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 border-b">
@@ -292,7 +434,7 @@ const State = () => {
                   <td colSpan="6" className="px-4 py-8 text-center text-gray-500">No Data Found</td>
                 </tr>
               ) : (
-                filteredStates.map((state) => {
+                filteredStates.map((state, idx) => {
                   const id = state?._id || state?.id
                   const stateName = up(state?.stateName)
                   const countryName = up(getDisplayCountryName(state?.country))
@@ -300,24 +442,30 @@ const State = () => {
                   const updated = toDisplayDateTime(state?.updatedAt)
                   const isActive = !!state?.isStateActive
                   return (
-                    <tr key={id} className="hover:bg-gray-50">
+                    <tr key={id || idx} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <div className="flex space-x-2">
                           <button
-                            onClick={() => handleDelete(id)}
-                            className="p-1 text-red-600 hover:bg-red-100 rounded"
+                            onClick={() => id && promptDelete(id, state?.stateName || "")}
+                            className="p-1 text-red-600 hover:bg-red-100 rounded disabled:opacity-50"
                             title="Delete"
+                            disabled={!id || loading}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleEdit(state)}
-                            className="p-1 text-green-600 hover:bg-green-100 rounded"
+                            className="p-1 text-green-600 hover:bg-green-100 rounded disabled:opacity-50"
                             title="Edit"
+                            disabled={loading}
                           >
                             <Edit className="w-4 h-4" />
                           </button>
-                          <button className="p-1 text-blue-600 hover:bg-blue-100 rounded" title="View">
+                          <button
+                            className="p-1 text-blue-600 hover:bg-blue-100 rounded disabled:opacity-50"
+                            title="View"
+                            disabled={loading}
+                          >
                             <Eye className="w-4 h-4" />
                           </button>
                         </div>
@@ -374,6 +522,20 @@ const State = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation modal */}
+      <ConfirmDeleteModal
+        open={confirm.open}
+        title="Delete state"
+        message={
+          confirm.name
+            ? `Are you sure you want to delete “${confirm.name}”? This action cannot be undone.`
+            : "Are you sure you want to delete this state? This action cannot be undone."
+        }
+        onCancel={() => setConfirm({ open: false, id: null, name: "" })}
+        onConfirm={performDelete}
+        loading={loading}
+      />
     </div>
   )
 }
