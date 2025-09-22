@@ -1,14 +1,55 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
-import { Plus, Minus, User, Package, Calendar, Printer, ArrowLeft, Loader2 } from "lucide-react"
-import { plantsAPI, departmentsAPI, usersAPI, appointmentsAPI } from "../services/api"
+import {
+  Plus,
+  Minus,
+  User,
+  Package,
+  Calendar,
+  Printer,
+  ArrowLeft,
+  Loader2,
+  Camera,
+  X,
+  RotateCcw,
+  Check,
+  RefreshCcw,
+} from "lucide-react"
+import { plantsAPI, departmentsAPI, usersAPI, appointmentsAPI, areasAPI } from "../services/api"
+import { toast } from "sonner"
 
-const VisitorForm = () => {
+/** Helper: normalize many possible API shapes into an array */
+const toArray = (res, preferredKeys = []) => {
+  if (Array.isArray(res)) return res
+  const d = res?.data ?? res
+  if (Array.isArray(d)) return d
+  const keys = [
+    ...preferredKeys,
+    "items",
+    "results",
+    "docs",
+    "rows",
+    "list",
+    "plants",
+    "departments",
+    "users",
+    "areas",
+    "data",
+  ]
+  for (const k of keys) {
+    const v = d?.[k]
+    if (Array.isArray(v)) return v
+  }
+  return []
+}
+
+const VisitorForm = ({ onSuccess }) => {
   const [plants, setPlants] = useState([])
   const [departments, setDepartments] = useState([])
   const [users, setUsers] = useState([])
+  const [areas, setAreas] = useState([])
   const [filteredUsers, setFilteredUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -16,14 +57,7 @@ const VisitorForm = () => {
   const [successData, setSuccessData] = useState(null)
   const [error, setError] = useState("")
 
-  const {
-    register,
-    control,
-    handleSubmit,
-    watch,
-    reset,
-    formState: { errors },
-  } = useForm({
+  const { register, control, handleSubmit, watch, reset, setValue } = useForm({
     defaultValues: {
       plant: "",
       department: "",
@@ -39,6 +73,7 @@ const VisitorForm = () => {
           company: "",
           email: "",
           belongings: [],
+          photo: "", // selfie data URL
         },
       ],
       honeypot: "",
@@ -60,34 +95,46 @@ const VisitorForm = () => {
     const loadData = async () => {
       try {
         setLoading(true)
-        const [plantsRes, departmentsRes, usersRes] = await Promise.all([
+        const [plantsRes, departmentsRes, usersRes, areasRes] = await Promise.all([
           plantsAPI.getAll(),
           departmentsAPI.getAll(),
           usersAPI.getAll(),
+          areasAPI.getAll(),
         ])
-
-        setPlants(plantsRes.data || [])
-        setDepartments(departmentsRes.data || [])
-        setUsers(usersRes.data || [])
+        setPlants(toArray(plantsRes, ["plants"]))
+        setDepartments(toArray(departmentsRes, ["departments"]))
+        setUsers(toArray(usersRes, ["users"]))
+        setAreas(toArray(areasRes, ["areas"]))
       } catch (error) {
         console.error("Error loading form data:", error)
+        toast.error("Failed to load form data", { description: "Please refresh the page and try again" })
       } finally {
         setLoading(false)
       }
     }
-
     loadData()
   }, [])
 
+  // Robust filter + safe fallback so list never vanishes
   useEffect(() => {
-    if (watchedDepartment && users.length > 0) {
-      const filtered = users.filter(
-        (user) => user.department === watchedDepartment || user.departmentId === watchedDepartment,
-      )
-      setFilteredUsers(filtered)
-    } else {
+    if (!watchedDepartment) {
       setFilteredUsers(users)
+      return
     }
+    const dep = String(watchedDepartment)
+    const filtered = users.filter((u) => {
+      const d = u.department
+      const candidates = [
+        u.departmentId,
+        d && d._id,
+        d && d.id,
+        d && d.name,
+        d && d.departmentName,
+        d, // could be a string id/name
+      ]
+      return candidates.map((x) => String(x ?? "")).includes(dep)
+    })
+    setFilteredUsers(filtered.length ? filtered : users)
   }, [watchedDepartment, users])
 
   const isEmail = (input) => {
@@ -104,83 +151,33 @@ const VisitorForm = () => {
 
   const onSubmit = async (data) => {
     setError("")
+    if (!data.plant) return setError("Plant is required")
+    if (!data.department) return setError("Department is required")
+    if (!data.personToVisit) return setError("Person to visit is required")
+    if (!data.areaToVisit) return setError("Area to visit is required")
+    if (!data.appointmentDate) return setError("Appointment date is required")
+    if (!data.appointmentValidTill) return setError("Valid till date is required")
+    if (!data.purposeOfVisit) return setError("Purpose of visit is required")
 
-    if (!data.plant) {
-      setError("Plant is required")
-      return
-    }
-    if (!data.department) {
-      setError("Department is required")
-      return
-    }
-    if (!data.personToVisit) {
-      setError("Person to visit is required")
-      return
-    }
-    if (!data.areaToVisit) {
-      setError("Area to visit is required")
-      return
-    }
-    if (!data.appointmentDate) {
-      setError("Appointment date is required")
-      return
-    }
-    if (!data.appointmentValidTill) {
-      setError("Valid till date is required")
-      return
-    }
-    if (!data.purposeOfVisit) {
-      setError("Purpose of visit is required")
-      return
-    }
-
-    if (!data.visitors || data.visitors.length === 0) {
-      setError("At least one visitor is required")
-      return
-    }
+    if (!data.visitors || data.visitors.length === 0) return setError("At least one visitor is required")
 
     for (let i = 0; i < data.visitors.length; i++) {
       const visitor = data.visitors[i]
-      if (!visitor.fullname?.trim()) {
-        setError(`Visitor ${i + 1}: Full name is required`)
-        return
-      }
-      if (!visitor.mobile?.trim()) {
-        setError(`Visitor ${i + 1}: Mobile number is required`)
-        return
-      }
-      if (!isPhoneNumber(visitor.mobile)) {
-        setError(`Visitor ${i + 1}: Mobile must be 10-15 digits`)
-        return
-      }
-      if (visitor.email && !isEmail(visitor.email)) {
-        setError(`Visitor ${i + 1}: Invalid email format`)
-        return
-      }
+      if (!visitor.fullname?.trim()) return setError(`Visitor ${i + 1}: Full name is required`)
+      if (!visitor.mobile?.trim()) return setError(`Visitor ${i + 1}: Mobile number is required`)
+      if (!isPhoneNumber(visitor.mobile)) return setError(`Visitor ${i + 1}: Mobile must be 10-15 digits`)
+      if (visitor.email && !isEmail(visitor.email)) return setError(`Visitor ${i + 1}: Invalid email format`)
     }
 
     const appointmentDate = new Date(data.appointmentDate)
     const validTillDate = new Date(data.appointmentValidTill)
-
-    if (validTillDate < appointmentDate) {
-      setError("Valid till date must be after appointment date")
-      return
-    }
-
-    const daysDiff = (validTillDate - appointmentDate) / (1000 * 60 * 60 * 24)
-    if (daysDiff > 7) {
-      setError("Valid till date must be within 7 days of appointment date")
-      return
-    }
-
-    if (data.honeypot) {
-      setError("Bot detected")
-      return
-    }
+    if (validTillDate < appointmentDate) return setError("Valid till date must be after appointment date")
+    const daysDiff = (validTillDate.getTime() - appointmentDate.getTime()) / (1000 * 60 * 60 * 24)
+    if (daysDiff > 7) return setError("Valid till date must be within 7 days of appointment date")
+    if (data.honeypot) return setError("Bot detected")
 
     try {
       setSubmitting(true)
-
       const appointmentData = {
         plant: data.plant,
         department: data.department,
@@ -194,30 +191,33 @@ const VisitorForm = () => {
           fullname: visitor.fullname.trim(),
           company: visitor.company?.trim() || "",
           email: visitor.email?.trim() || "",
+          photo: visitor.photo || "",
           belongings:
-            visitor.belongings
-              ?.filter((b) => b.assetName?.trim())
-              .map((b) => ({
-                assetName: b.assetName.trim(),
-              })) || [],
+            visitor.belongings?.filter((b) => b.assetName?.trim()).map((b) => ({ assetName: b.assetName.trim() })) ||
+            [],
         })),
       }
 
       const response = await appointmentsAPI.create(appointmentData)
-      setSuccessData(response.data)
-      setSuccess(true)
+      if (response?.success || response?.data) {
+        toast.success("Appointment created successfully!", {
+          description: `Appointment ID: ${response?.data?.appointmentId || "Generated"}`,
+        })
+        setSuccessData(response.data)
+        setSuccess(true)
+        onSuccess?.()
+      } else {
+        toast.error("Failed to create appointment. Please try again.")
+      }
     } catch (error) {
       console.error("Error creating appointment:", error)
-      setError("Failed to create appointment. Please try again.")
+      toast.error("Error creating appointment", { description: error?.message || "Unknown error occurred" })
     } finally {
       setSubmitting(false)
     }
   }
 
-  const handlePrint = () => {
-    window.print()
-  }
-
+  const handlePrint = () => window.print()
   const handleBackToForm = () => {
     setSuccess(false)
     setSuccessData(null)
@@ -255,24 +255,26 @@ const VisitorForm = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-600">Appointment ID</p>
-                  <p className="font-semibold">{successData.appointmentId || "N/A"}</p>
+                  <p className="font-semibold">{successData?.appointmentId || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Plant</p>
                   <p className="font-semibold">
-                    {plants.find((p) => p._id === successData.plant)?.name || successData.plant}
+                    {plants.find((p) => (p._id || p.id || p.name) === successData.plant)?.name || successData.plant}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Department</p>
                   <p className="font-semibold">
-                    {departments.find((d) => d._id === successData.department)?.name || successData.department}
+                    {departments.find((d) => (d._id || d.id || d.name) === successData.department)?.name ||
+                      successData.department}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Person to Visit</p>
                   <p className="font-semibold">
-                    {users.find((u) => u._id === successData.personToVisit)?.fullname || successData.personToVisit}
+                    {users.find((u) => (u._id || u.id || u.email) === successData.personToVisit)?.fullname ||
+                      successData.personToVisit}
                   </p>
                 </div>
                 <div>
@@ -317,6 +319,16 @@ const VisitorForm = () => {
                       <div>
                         <p className="text-sm text-gray-600">Email</p>
                         <p className="font-semibold">{visitor.email}</p>
+                      </div>
+                    )}
+                    {visitor.photo && (
+                      <div className="md:col-span-2">
+                        <p className="text-sm text-gray-600">Selfie</p>
+                        <img
+                          src={visitor.photo}
+                          alt="Visitor selfie"
+                          className="mt-1 w-40 h-40 object-cover rounded-lg border"
+                        />
                       </div>
                     )}
                     {visitor.belongings?.length > 0 && (
@@ -368,6 +380,7 @@ const VisitorForm = () => {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+            {/* Honeypot */}
             <input
               {...register("honeypot")}
               type="text"
@@ -385,6 +398,7 @@ const VisitorForm = () => {
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Plant */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Plant *</label>
                   <select
@@ -392,14 +406,19 @@ const VisitorForm = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Plant</option>
-                    {plants.map((plant) => (
-                      <option key={plant._id || plant.name} value={plant._id || plant.name}>
-                        {plant.name}
-                      </option>
-                    ))}
+                    {plants.map((plant) => {
+                      const id = plant._id || plant.id || plant.value || plant.code || plant.name
+                      const label = plant.name || plant.plantName || plant.title || plant.label || String(id)
+                      return (
+                        <option key={id} value={id}>
+                          {label}
+                        </option>
+                      )
+                    })}
                   </select>
                 </div>
 
+                {/* Department */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Department *</label>
                   <select
@@ -407,14 +426,19 @@ const VisitorForm = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Department</option>
-                    {departments.map((dept) => (
-                      <option key={dept._id || dept.name} value={dept._id || dept.name}>
-                        {dept.name}
-                      </option>
-                    ))}
+                    {departments.map((dept) => {
+                      const id = dept._id || dept.id || dept.value || dept.code || dept.name
+                      const label = dept.name || dept.departmentName || dept.title || dept.label || String(id)
+                      return (
+                        <option key={id} value={id}>
+                          {label}
+                        </option>
+                      )
+                    })}
                   </select>
                 </div>
 
+                {/* Person to Visit */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Person to Visit *</label>
                   <select
@@ -422,24 +446,40 @@ const VisitorForm = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Person</option>
-                    {filteredUsers.map((user) => (
-                      <option key={user._id} value={user._id}>
-                        {user.fullname || user.name}
-                      </option>
-                    ))}
+                    {filteredUsers.map((user) => {
+                      const id = user._id || user.id || user.email || user.username
+                      const label = user.fullname || user.name || user.displayName || user.email || String(id)
+                      return (
+                        <option key={id} value={id}>
+                          {label}
+                        </option>
+                      )
+                    })}
                   </select>
                 </div>
 
+                {/* Area to Visit */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Area to Visit *</label>
-                  <input
+                  <select
                     {...register("areaToVisit")}
-                    type="text"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter area to visit"
-                  />
+                  >
+                    <option value="">Select Area</option>
+                    {areas.map((area) => {
+                      const id =
+                        area._id || area.id || area.value || area.code || area.name || area.areaName || area.title
+                      const label = area.name || area.areaName || area.title || area.label || String(id)
+                      return (
+                        <option key={id} value={id}>
+                          {label}
+                        </option>
+                      )
+                    })}
+                  </select>
                 </div>
 
+                {/* Dates */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Appointment Date *</label>
                   <input
@@ -458,6 +498,7 @@ const VisitorForm = () => {
                   />
                 </div>
 
+                {/* Purpose */}
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Purpose of Visit *</label>
                   <select
@@ -475,6 +516,7 @@ const VisitorForm = () => {
               </div>
             </div>
 
+            {/* Visitors */}
             <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
                 <h3 className="text-lg font-medium text-gray-900 flex items-center">
@@ -490,6 +532,7 @@ const VisitorForm = () => {
                       company: "",
                       email: "",
                       belongings: [],
+                      photo: "",
                     })
                   }
                   className="flex items-center justify-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm sm:text-base"
@@ -505,7 +548,8 @@ const VisitorForm = () => {
                   visitorIndex={visitorIndex}
                   register={register}
                   control={control}
-                  errors={errors}
+                  watch={watch}
+                  setValue={setValue}
                   onRemove={() => removeVisitor(visitorIndex)}
                   canRemove={visitorFields.length > 1}
                 />
@@ -535,7 +579,8 @@ const VisitorForm = () => {
   )
 }
 
-const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRemove }) => {
+/** One visitor card + built-in camera modal using getUserMedia */
+const VisitorCard = ({ visitorIndex, register, control, watch, setValue, onRemove, canRemove }) => {
   const {
     fields: belongingFields,
     append: appendBelonging,
@@ -545,6 +590,113 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
     name: `visitors.${visitorIndex}.belongings`,
   })
 
+  // Camera modal state
+  const [showCamera, setShowCamera] = useState(false)
+  const [facingMode, setFacingMode] = useState("user") // "user" (front) | "environment" (rear)
+  const [snapData, setSnapData] = useState("") // temp captured frame before saving
+  const [streamError, setStreamError] = useState("")
+
+  const videoRef = useRef(null)
+  const canvasRef = useRef(null)
+  const mediaStreamRef = useRef(null)
+
+  const photoValue = watch(`visitors.${visitorIndex}.photo`)
+
+  // Start camera
+  const openCamera = async () => {
+    setStreamError("")
+    setSnapData("")
+    setShowCamera(true)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode },
+        audio: false,
+      })
+      mediaStreamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.play().catch(() => {})
+      }
+    } catch (err) {
+      console.error("Camera error:", err)
+      setStreamError("Unable to access camera. Check permissions and try again.")
+    }
+  }
+
+  // Stop camera
+  const stopCamera = () => {
+    const stream = mediaStreamRef.current
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop())
+      mediaStreamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+  }
+
+  // Cleanup on modal close or unmount
+  useEffect(() => {
+    if (!showCamera) stopCamera()
+    return () => stopCamera()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCamera])
+
+  // Flip camera
+  const flipCamera = async () => {
+    setFacingMode((prev) => (prev === "user" ? "environment" : "user"))
+    // restart stream with new facingMode
+    try {
+      stopCamera()
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: facingMode === "user" ? "environment" : "user" },
+        audio: false,
+      })
+      mediaStreamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.play().catch(() => {})
+      }
+      setStreamError("")
+      setSnapData("")
+    } catch (err) {
+      console.error("Flip camera error:", err)
+      setStreamError("Unable to switch camera.")
+    }
+  }
+
+  // Capture frame to canvas
+  const takeSnapshot = () => {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video || !canvas) return
+    const w = video.videoWidth
+    const h = video.videoHeight
+    if (!w || !h) return
+
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext("2d")
+    ctx.drawImage(video, 0, 0, w, h)
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.9)
+    setSnapData(dataUrl)
+  }
+
+  // Use captured photo -> save to form + close modal
+  const useSnapshot = () => {
+    if (!snapData) return
+    setValue(`visitors.${visitorIndex}.photo`, snapData, { shouldDirty: true })
+    setShowCamera(false)
+  }
+
+  // Retake (clear temp)
+  const retake = () => setSnapData("")
+
+  // Clear saved photo from form
+  const clearPhoto = () => {
+    setValue(`visitors.${visitorIndex}.photo`, "", { shouldDirty: true })
+  }
+
   return (
     <div className="bg-white rounded-lg p-4 sm:p-6 mb-4 border border-gray-200">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
@@ -552,17 +704,49 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
           <User className="w-4 h-4 mr-2" />
           Visitor {visitorIndex + 1}
         </h3>
-        {canRemove && (
+
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={onRemove}
-            className="self-start sm:self-center text-red-600 hover:text-red-800 transition-colors p-1"
+            onClick={openCamera}
+            className="flex items-center px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+            title="Take picture"
           >
-            <Minus className="w-5 h-5" />
+            <Camera className="w-4 h-4 mr-1" />
+            Take picture
           </button>
-        )}
+          {photoValue && (
+            <button
+              type="button"
+              onClick={clearPhoto}
+              className="flex items-center px-2 py-2 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+              title="Remove picture"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+          {canRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="text-red-600 hover:text-red-800 transition-colors p-1"
+              title="Remove visitor"
+            >
+              <Minus className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
 
+      {/* Photo preview (saved to form) */}
+      {photoValue && (
+        <div className="mb-4">
+          <p className="text-sm text-gray-600 mb-1">Selfie</p>
+          <img src={photoValue} alt="Selfie" className="w-40 h-40 object-cover rounded-lg border" />
+        </div>
+      )}
+
+      {/* Fields */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div className="sm:col-span-2 sm:grid sm:grid-cols-2 sm:gap-4 space-y-4 sm:space-y-0">
           <div>
@@ -574,7 +758,6 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
               placeholder="Enter mobile number"
             />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
             <input
@@ -596,7 +779,6 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
               placeholder="Enter company name"
             />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
             <input
@@ -609,6 +791,7 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
         </div>
       </div>
 
+      {/* Belongings */}
       <div className="border-t border-gray-200 pt-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
           <h4 className="text-md font-medium text-gray-900 flex items-center">
@@ -664,6 +847,88 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
           </div>
         )}
       </div>
+
+      {/* Camera Modal */}
+      {showCamera && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="bg-white w-[95%] max-w-md rounded-2xl overflow-hidden shadow-xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <div className="flex items-center gap-2">
+                <Camera className="w-5 h-5" />
+                <h4 className="font-semibold">Take selfie</h4>
+              </div>
+              <button
+                type="button"
+                className="p-2 rounded hover:bg-gray-100"
+                onClick={() => setShowCamera(false)}
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4">
+              {/* Video / Snapshot */}
+              <div className="relative w-full aspect-[3/4] bg-black rounded-lg overflow-hidden">
+                {!snapData ? (
+                  <video ref={videoRef} playsInline muted className="w-full h-full object-cover" />
+                ) : (
+                  <img src={snapData} alt="Preview" className="w-full h-full object-cover" />
+                )}
+                <canvas ref={canvasRef} className="hidden" />
+              </div>
+
+              {streamError && <p className="text-sm text-red-600 mt-3">{streamError}</p>}
+
+              {/* Controls */}
+              <div className="mt-4 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={flipCamera}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded bg-gray-100 hover:bg-gray-200"
+                  title="Flip camera"
+                >
+                  <RefreshCcw className="w-4 h-4" />
+                  Flip
+                </button>
+
+                {!snapData ? (
+                  <button
+                    type="button"
+                    onClick={takeSnapshot}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                    title="Capture"
+                  >
+                    <Camera className="w-4 h-4" />
+                    Capture
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={retake}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded bg-gray-100 hover:bg-gray-200"
+                      title="Retake"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Retake
+                    </button>
+                    <button
+                      type="button"
+                      onClick={useSnapshot}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700"
+                      title="Use photo"
+                    >
+                      <Check className="w-4 h-4" />
+                      Use photo
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
