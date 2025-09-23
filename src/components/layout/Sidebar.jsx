@@ -165,7 +165,6 @@ const Sidebar = ({ isOpen, onClose }) => {
   // ---------- role-based filtering with safe fallback ----------
   const rolesReady = !!user && typeof hasRole === "function"
   const filteredSections = rolesReady ? sidebarSections.filter((section) => hasAnyRole(section.roles)) : sidebarSections
-
   const visibleSections = filteredSections.length ? filteredSections : sidebarSections
 
   // ---------- UI handlers ----------
@@ -183,7 +182,6 @@ const Sidebar = ({ isOpen, onClose }) => {
   // Auto-open section for current route + restore from localStorage safely
   useEffect(() => {
     const stored = localStorage.getItem("sidebar.expandedSection")
-
     const current = visibleSections.find((sec) => (sec.items || []).some((it) => it.href === location.pathname))
 
     if (current && current.id !== expandedSection) {
@@ -299,7 +297,7 @@ const Sidebar = ({ isOpen, onClose }) => {
 
       {/* Mobile drawer */}
       <div className={`lg:hidden fixed inset-0 z-50 ${isOpen ? "block" : "hidden"}`}>
-        <div className="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 px-6 pb-4">
+        <div className="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 px-6 pb-4 h-full flex flex-col">
           {/* Header */}
           <div className="flex h-16 shrink-0 items-center justify-between">
             <div className="flex items-center gap-3">
@@ -319,9 +317,9 @@ const Sidebar = ({ isOpen, onClose }) => {
             </button>
           </div>
 
-          {/* Navigation */}
-          <nav className="flex flex-1 flex-col mt-5">
-            <ul role="list" className="flex flex-1 flex-col gap-y-7">
+          {/* Navigation (scrollable) */}
+          <nav className="flex-1 mt-5 overflow-y-auto min-h-0">
+            <ul role="list" className="flex flex-col gap-y-7">
               {visibleSections.map((section) => (
                 <li key={section.id}>
                   <div className="text-xs font-semibold leading-6 text-gray-400 uppercase tracking-wide">

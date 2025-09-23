@@ -36,20 +36,12 @@ const Dashboard = () => {
 
   const statCards = [
     {
-      name: "One Day Pass Issued",
+      name: "Pass Issued",
       value: stats.oneDayPass,
       icon: Users,
       color: "bg-purple-500",
       bgColor: "bg-purple-50",
       textColor: "text-purple-600",
-    },
-    {
-      name: "Extended Pass Issued",
-      value: stats.extendedPass,
-      icon: Users,
-      color: "bg-blue-500",
-      bgColor: "bg-blue-50",
-      textColor: "text-blue-600",
     },
     {
       name: "Visitors Appointment",

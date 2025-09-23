@@ -222,14 +222,16 @@ const VisitorForm = ({ onSuccess }) => {
     setSuccess(false)
     setSuccessData(null)
     reset()
+    // Scroll to top on mobile to show the form title
+    window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center space-y-4">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="flex flex-col items-center space-y-3">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          <p className="text-sm text-gray-600">Loading form...</p>
+          <p className="text-sm text-gray-600">Loading form…</p>
         </div>
       </div>
     )
@@ -237,107 +239,74 @@ const VisitorForm = ({ onSuccess }) => {
 
   if (success && successData) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen bg-gray-50 py-6 md:py-8">
         <div className="max-w-4xl mx-auto px-4">
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="bg-white rounded-xl shadow p-5 sm:p-8">
+            <div className="text-center mb-6 sm:mb-8">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-7 h-7 sm:w-8 sm:h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Appointment Created Successfully!</h1>
-              <p className="text-gray-600">Your visitor appointment has been scheduled.</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">Appointment Created!</h1>
+              <p className="text-gray-600 text-sm sm:text-base">Your visitor appointment has been scheduled.</p>
             </div>
 
-            <div className="bg-gray-50 rounded-lg p-6 mb-8">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Appointment Details</h2>
+            <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-4">Appointment Details</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">Appointment ID</p>
-                  <p className="font-semibold">{successData?.appointmentId || "N/A"}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Plant</p>
-                  <p className="font-semibold">
-                    {plants.find((p) => (p._id || p.id || p.name) === successData.plant)?.name || successData.plant}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Department</p>
-                  <p className="font-semibold">
-                    {departments.find((d) => (d._id || d.id || d.name) === successData.department)?.name ||
-                      successData.department}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Person to Visit</p>
-                  <p className="font-semibold">
-                    {users.find((u) => (u._id || u.id || u.email) === successData.personToVisit)?.fullname ||
-                      successData.personToVisit}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Area to Visit</p>
-                  <p className="font-semibold">{successData.areaToVisit}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Appointment Date</p>
-                  <p className="font-semibold">{new Date(successData.appointmentDate).toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Valid Till</p>
-                  <p className="font-semibold">{new Date(successData.appointmentValidTill).toLocaleString()}</p>
-                </div>
-                <div className="md:col-span-2">
-                  <p className="text-sm text-gray-600">Purpose of Visit</p>
-                  <p className="font-semibold">{successData.purposeOfVisit}</p>
-                </div>
+                <Detail label="Appointment ID" value={successData?.appointmentId || "N/A"} />
+                <Detail
+                  label="Plant"
+                  value={plants.find((p) => (p._id || p.id || p.name) === successData.plant)?.name || successData.plant}
+                />
+                <Detail
+                  label="Department"
+                  value={
+                    departments.find((d) => (d._id || d.id || d.name) === successData.department)?.name ||
+                    successData.department
+                  }
+                />
+                <Detail
+                  label="Person to Visit"
+                  value={
+                    users.find((u) => (u._id || u.id || u.email) === successData.personToVisit)?.fullname ||
+                    successData.personToVisit
+                  }
+                />
+                <Detail label="Area to Visit" value={successData.areaToVisit} />
+                <Detail label="Appointment Date" value={new Date(successData.appointmentDate).toLocaleString()} />
+                <Detail label="Valid Till" value={new Date(successData.appointmentValidTill).toLocaleString()} />
+                <Detail className="md:col-span-2" label="Purpose of Visit" value={successData.purposeOfVisit} />
               </div>
             </div>
 
-            <div className="bg-gray-50 rounded-lg p-6 mb-8">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Visitors</h2>
+            <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-4">Visitors</h2>
               {successData.visitors?.map((visitor, index) => (
                 <div key={index} className="border-b border-gray-200 pb-4 mb-4 last:border-b-0 last:mb-0">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-600">Full Name</p>
-                      <p className="font-semibold">{visitor.fullname}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Mobile</p>
-                      <p className="font-semibold">{visitor.mobile}</p>
-                    </div>
-                    {visitor.company && (
-                      <div>
-                        <p className="text-sm text-gray-600">Company</p>
-                        <p className="font-semibold">{visitor.company}</p>
-                      </div>
-                    )}
-                    {visitor.email && (
-                      <div>
-                        <p className="text-sm text-gray-600">Email</p>
-                        <p className="font-semibold">{visitor.email}</p>
-                      </div>
-                    )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Detail label="Full Name" value={visitor.fullname} />
+                    <Detail label="Mobile" value={visitor.mobile} />
+                    {visitor.company && <Detail label="Company" value={visitor.company} />}
+                    {visitor.email && <Detail label="Email" value={visitor.email} />}
                     {visitor.photo && (
-                      <div className="md:col-span-2">
-                        <p className="text-sm text-gray-600">Selfie</p>
+                      <div className="sm:col-span-2">
+                        <p className="text-sm text-gray-600 mb-1">Selfie</p>
                         <img
                           src={visitor.photo}
                           alt="Visitor selfie"
-                          className="mt-1 w-40 h-40 object-cover rounded-lg border"
+                          className="mt-1 w-32 h-32 sm:w-40 sm:h-40 object-cover rounded-lg border"
                         />
                       </div>
                     )}
                     {visitor.belongings?.length > 0 && (
-                      <div className="md:col-span-2">
-                        <p className="text-sm text-gray-600">Belongings</p>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {visitor.belongings.map((belonging, bIndex) => (
-                            <span key={bIndex} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
-                              {belonging.assetName}
+                      <div className="sm:col-span-2">
+                        <p className="text-sm text-gray-600 mb-1">Belongings</p>
+                        <div className="flex flex-wrap gap-2">
+                          {visitor.belongings.map((b, i) => (
+                            <span key={i} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs sm:text-sm">
+                              {b.assetName}
                             </span>
                           ))}
                         </div>
@@ -348,20 +317,37 @@ const VisitorForm = ({ onSuccess }) => {
               ))}
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            {/* Actions */}
+            <div className="hidden sm:flex gap-3 justify-center">
               <button
                 onClick={handlePrint}
-                className="flex items-center justify-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center justify-center px-5 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <Printer className="w-5 h-5 mr-2" />
                 Print
               </button>
               <button
                 onClick={handleBackToForm}
-                className="flex items-center justify-center px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                className="inline-flex items-center justify-center px-5 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
               >
                 <ArrowLeft className="w-5 h-5 mr-2" />
                 Back to Form
+              </button>
+            </div>
+
+            {/* Mobile actions */}
+            <div className="sm:hidden mt-4 grid grid-cols-2 gap-3">
+              <button
+                onClick={handlePrint}
+                className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Print
+              </button>
+              <button
+                onClick={handleBackToForm}
+                className="px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Back
               </button>
             </div>
           </div>
@@ -371,39 +357,48 @@ const VisitorForm = ({ onSuccess }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 pb-24 md:pb-8"> {/* extra bottom space for sticky bar on mobile */}
       <div className="max-w-4xl mx-auto px-4">
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Visitor Registration Form</h1>
-            <p className="text-gray-600">Please fill out the form below to schedule your visit</p>
+        <div className="bg-white rounded-xl shadow md:mt-6">
+          {/* Header */}
+          <div className="px-4 py-5 sm:px-6">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Visitor Registration</h1>
+            <p className="text-gray-600 text-sm sm:text-base mt-1">
+              Please fill out the form below to schedule your visit.
+            </p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+          <form id="visitor-form" onSubmit={handleSubmit(onSubmit)} className="px-4 pb-4 sm:px-6 sm:pb-6 space-y-6">
             {/* Honeypot */}
             <input
               {...register("honeypot")}
               type="text"
-              style={{ position: "absolute", left: "-9999px", opacity: 0 }}
+              className="sr-only"
               tabIndex={-1}
               autoComplete="off"
+              aria-hidden="true"
             />
 
-            {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">{error}</div>}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 sm:px-4 sm:py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
 
-            <div className="bg-gray-50 rounded-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-                <Calendar className="w-5 h-5 mr-2" />
+            {/* Appointment Details */}
+            <section className="bg-gray-50 rounded-lg p-4 sm:p-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 flex items-center">
+                <Calendar className="w-5 h-5 sm:w-6 sm:h-6 mr-2" />
                 Appointment Details
               </h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 {/* Plant */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Plant *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Plant *</label>
                   <select
                     {...register("plant")}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Plant</option>
                     {plants.map((plant) => {
@@ -420,10 +415,10 @@ const VisitorForm = ({ onSuccess }) => {
 
                 {/* Department */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Department *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Department *</label>
                   <select
                     {...register("department")}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Department</option>
                     {departments.map((dept) => {
@@ -439,11 +434,11 @@ const VisitorForm = ({ onSuccess }) => {
                 </div>
 
                 {/* Person to Visit */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Person to Visit *</label>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Person to Visit *</label>
                   <select
                     {...register("personToVisit")}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Person</option>
                     {filteredUsers.map((user) => {
@@ -460,10 +455,10 @@ const VisitorForm = ({ onSuccess }) => {
 
                 {/* Area to Visit */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Area to Visit *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Area to Visit *</label>
                   <select
                     {...register("areaToVisit")}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Area</option>
                     {areas.map((area) => {
@@ -481,29 +476,29 @@ const VisitorForm = ({ onSuccess }) => {
 
                 {/* Dates */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Appointment Date *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Appointment Date *</label>
                   <input
                     {...register("appointmentDate")}
                     type="datetime-local"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Valid Till *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Valid Till *</label>
                   <input
                     {...register("appointmentValidTill")}
                     type="datetime-local"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
                 {/* Purpose */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Purpose of Visit *</label>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Purpose of Visit *</label>
                   <select
                     {...register("purposeOfVisit")}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Purpose</option>
                     <option value="Interview">Interview</option>
@@ -514,13 +509,13 @@ const VisitorForm = ({ onSuccess }) => {
                   </select>
                 </div>
               </div>
-            </div>
+            </section>
 
             {/* Visitors */}
-            <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
-                <h3 className="text-lg font-medium text-gray-900 flex items-center">
-                  <User className="w-4 h-4 mr-2" />
+            <section className="bg-gray-50 rounded-lg p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <User className="w-5 h-5 mr-2" />
                   Visitors
                 </h3>
                 <button
@@ -535,37 +530,40 @@ const VisitorForm = ({ onSuccess }) => {
                       photo: "",
                     })
                   }
-                  className="flex items-center justify-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm sm:text-base"
+                  className="inline-flex items-center justify-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Add Visitor
                 </button>
               </div>
 
-              {visitorFields.map((visitor, visitorIndex) => (
-                <VisitorCard
-                  key={visitor.id}
-                  visitorIndex={visitorIndex}
-                  register={register}
-                  control={control}
-                  watch={watch}
-                  setValue={setValue}
-                  onRemove={() => removeVisitor(visitorIndex)}
-                  canRemove={visitorFields.length > 1}
-                />
-              ))}
-            </div>
+              <div className="space-y-4">
+                {visitorFields.map((visitor, visitorIndex) => (
+                  <VisitorCard
+                    key={visitor.id}
+                    visitorIndex={visitorIndex}
+                    register={register}
+                    control={control}
+                    watch={watch}
+                    setValue={setValue}
+                    onRemove={() => removeVisitor(visitorIndex)}
+                    canRemove={visitorFields.length > 1}
+                  />
+                ))}
+              </div>
+            </section>
 
-            <div className="flex justify-center px-4">
+            {/* Desktop submit */}
+            <div className="hidden md:flex justify-center">
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center text-sm sm:text-base"
+                className="min-w-[240px] px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors inline-flex items-center justify-center"
               >
                 {submitting ? (
                   <>
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Creating Appointment...
+                    Creating Appointment…
                   </>
                 ) : (
                   "Create Appointment"
@@ -575,9 +573,36 @@ const VisitorForm = ({ onSuccess }) => {
           </form>
         </div>
       </div>
+
+      {/* Sticky mobile submit bar (outside the card, uses form attribute) */}
+      <div className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur px-4 py-3">
+        <button
+          type="submit"
+          form="visitor-form"
+          disabled={submitting}
+          className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors inline-flex items-center justify-center"
+        >
+          {submitting ? (
+            <>
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              Creating Appointment…
+            </>
+          ) : (
+            "Create Appointment"
+          )}
+        </button>
+      </div>
     </div>
   )
 }
+
+/** Simple detail line item */
+const Detail = ({ label, value, className = "" }) => (
+  <div className={className}>
+    <p className="text-xs sm:text-sm text-gray-600">{label}</p>
+    <p className="font-semibold break-words">{value}</p>
+  </div>
+)
 
 /** One visitor card + built-in camera modal using getUserMedia */
 const VisitorCard = ({ visitorIndex, register, control, watch, setValue, onRemove, canRemove }) => {
@@ -645,11 +670,11 @@ const VisitorCard = ({ visitorIndex, register, control, watch, setValue, onRemov
   // Flip camera
   const flipCamera = async () => {
     setFacingMode((prev) => (prev === "user" ? "environment" : "user"))
-    // restart stream with new facingMode
     try {
       stopCamera()
+      const next = facingMode === "user" ? "environment" : "user"
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facingMode === "user" ? "environment" : "user" },
+        video: { facingMode: next },
         audio: false,
       })
       mediaStreamRef.current = stream
@@ -668,18 +693,7 @@ const VisitorCard = ({ visitorIndex, register, control, watch, setValue, onRemov
   // Capture frame to canvas
   const takeSnapshot = () => {
     const video = videoRef.current
-    const canvas = canvasRef.current
-    if (!video || !canvas) return
-    const w = video.videoWidth
-    const h = video.videoHeight
-    if (!w || !h) return
-
-    canvas.width = w
-    canvas.height = h
-    const ctx = canvas.getContext("2d")
-    ctx.drawImage(video, 0, 0, w, h)
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.9)
-    setSnapData(dataUrl)
+    theCanvas(canvasRef.current, video, setSnapData)
   }
 
   // Use captured photo -> save to form + close modal
@@ -698,10 +712,10 @@ const VisitorCard = ({ visitorIndex, register, control, watch, setValue, onRemov
   }
 
   return (
-    <div className="bg-white rounded-lg p-4 sm:p-6 mb-4 border border-gray-200">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
-        <h3 className="text-lg font-medium text-gray-900 flex items-center">
-          <User className="w-4 h-4 mr-2" />
+    <div className="bg-white rounded-lg p-4 sm:p-6 border border-gray-200">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
+        <h3 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center">
+          <User className="w-5 h-5 mr-2" />
           Visitor {visitorIndex + 1}
         </h3>
 
@@ -709,7 +723,7 @@ const VisitorCard = ({ visitorIndex, register, control, watch, setValue, onRemov
           <button
             type="button"
             onClick={openCamera}
-            className="flex items-center px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
             title="Take picture"
           >
             <Camera className="w-4 h-4 mr-1" />
@@ -719,7 +733,7 @@ const VisitorCard = ({ visitorIndex, register, control, watch, setValue, onRemov
             <button
               type="button"
               onClick={clearPhoto}
-              className="flex items-center px-2 py-2 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+              className="inline-flex items-center px-2 py-2 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
               title="Remove picture"
             >
               <X className="w-4 h-4" />
@@ -729,7 +743,7 @@ const VisitorCard = ({ visitorIndex, register, control, watch, setValue, onRemov
             <button
               type="button"
               onClick={onRemove}
-              className="text-red-600 hover:text-red-800 transition-colors p-1"
+              className="text-red-600 hover:text-red-800 transition-colors p-2 rounded hover:bg-red-50"
               title="Remove visitor"
             >
               <Minus className="w-5 h-5" />
@@ -742,88 +756,76 @@ const VisitorCard = ({ visitorIndex, register, control, watch, setValue, onRemov
       {photoValue && (
         <div className="mb-4">
           <p className="text-sm text-gray-600 mb-1">Selfie</p>
-          <img src={photoValue} alt="Selfie" className="w-40 h-40 object-cover rounded-lg border" />
+          <img src={photoValue} alt="Selfie" className="w-32 h-32 sm:w-40 sm:h-40 object-cover rounded-lg border" />
         </div>
       )}
 
       {/* Fields */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <div className="sm:col-span-2 sm:grid sm:grid-cols-2 sm:gap-4 space-y-4 sm:space-y-0">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Mobile Number *</label>
-            <input
-              {...register(`visitors.${visitorIndex}.mobile`)}
-              type="tel"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-              placeholder="Enter mobile number"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
-            <input
-              {...register(`visitors.${visitorIndex}.fullname`)}
-              type="text"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-              placeholder="Enter full name"
-            />
-          </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div className="sm:col-span-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Mobile Number *</label>
+          <input
+            {...register(`visitors.${visitorIndex}.mobile`)}
+            type="tel"
+            inputMode="numeric"
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter mobile number"
+          />
+        </div>
+        <div className="sm:col-span-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name *</label>
+          <input
+            {...register(`visitors.${visitorIndex}.fullname`)}
+            type="text"
+            autoCapitalize="words"
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter full name"
+          />
         </div>
 
-        <div className="sm:col-span-2 sm:grid sm:grid-cols-2 sm:gap-4 space-y-4 sm:space-y-0">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Company</label>
-            <input
-              {...register(`visitors.${visitorIndex}.company`)}
-              type="text"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-              placeholder="Enter company name"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-            <input
-              {...register(`visitors.${visitorIndex}.email`)}
-              type="email"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-              placeholder="Enter email address"
-            />
-          </div>
+        <div className="sm:col-span-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Company</label>
+          <input
+            {...register(`visitors.${visitorIndex}.company`)}
+            type="text"
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter company name"
+          />
+        </div>
+        <div className="sm:col-span-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+          <input
+            {...register(`visitors.${visitorIndex}.email`)}
+            type="email"
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter email address"
+          />
         </div>
       </div>
 
       {/* Belongings */}
       <div className="border-t border-gray-200 pt-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
-          <h4 className="text-md font-medium text-gray-900 flex items-center">
-            <Package className="w-4 h-4 mr-2" />
+        <div className="flex items-center justify-between mb-3 gap-2">
+          <h4 className="text-md font-semibold text-gray-900 flex items-center">
+            <Package className="w-5 h-5 mr-2" />
             Belongings
           </h4>
-          {belongingFields.length === 0 ? (
-            <button
-              type="button"
-              onClick={() => appendBelonging({ assetName: "" })}
-              className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors self-start sm:self-center"
-              title="Add belonging"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => appendBelonging({ assetName: "" })}
-              className="flex items-center px-2 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
-            >
-              <Plus className="w-3 h-3 mr-1" />
-              Add
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => appendBelonging({ assetName: "" })}
+            className="inline-flex items-center px-3 py-2 text-sm bg-gray-700 text-white rounded hover:bg-gray-800 transition-colors"
+            title="Add belonging"
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Add
+          </button>
         </div>
 
         {belongingFields.length === 0 ? (
           <div className="text-center py-4 text-gray-500 text-sm">
             <Package className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>No belongings added</p>
-            <p className="text-xs mt-1">Click the + icon above to add belongings</p>
+            <p className="text-xs mt-1">Tap “Add” to include belongings</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -832,13 +834,14 @@ const VisitorCard = ({ visitorIndex, register, control, watch, setValue, onRemov
                 <input
                   {...register(`visitors.${visitorIndex}.belongings.${belongingIndex}.assetName`)}
                   type="text"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                  className="flex-1 px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Enter asset name"
                 />
                 <button
                   type="button"
                   onClick={() => removeBelonging(belongingIndex)}
-                  className="text-red-600 hover:text-red-800 transition-colors p-1"
+                  className="text-red-600 hover:text-red-800 transition-colors p-2 rounded hover:bg-red-50"
+                  title="Remove"
                 >
                   <Minus className="w-4 h-4" />
                 </button>
@@ -850,9 +853,13 @@ const VisitorCard = ({ visitorIndex, register, control, watch, setValue, onRemov
 
       {/* Camera Modal */}
       {showCamera && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="bg-white w-[95%] max-w-md rounded-2xl overflow-hidden shadow-xl">
-            <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/70" onClick={() => setShowCamera(false)} />
+          {/* Sheet */}
+          <div className="relative z-10 w-full h-full sm:h-auto sm:w-[520px] bg-white sm:rounded-2xl overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b sticky top-0 bg-white">
               <div className="flex items-center gap-2">
                 <Camera className="w-5 h-5" />
                 <h4 className="font-semibold">Take selfie</h4>
@@ -862,13 +869,14 @@ const VisitorCard = ({ visitorIndex, register, control, watch, setValue, onRemov
                 className="p-2 rounded hover:bg-gray-100"
                 onClick={() => setShowCamera(false)}
                 title="Close"
+                aria-label="Close camera"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-4">
-              {/* Video / Snapshot */}
+            {/* Body */}
+            <div className="p-4 flex-1 overflow-auto">
               <div className="relative w-full aspect-[3/4] bg-black rounded-lg overflow-hidden">
                 {!snapData ? (
                   <video ref={videoRef} playsInline muted className="w-full h-full object-cover" />
@@ -879,9 +887,11 @@ const VisitorCard = ({ visitorIndex, register, control, watch, setValue, onRemov
               </div>
 
               {streamError && <p className="text-sm text-red-600 mt-3">{streamError}</p>}
+            </div>
 
-              {/* Controls */}
-              <div className="mt-4 flex items-center justify-between gap-2">
+            {/* Footer actions */}
+            <div className="p-4 border-t bg-white sticky bottom-0">
+              <div className="flex items-center justify-between gap-2">
                 <button
                   type="button"
                   onClick={flipCamera}
@@ -931,6 +941,20 @@ const VisitorCard = ({ visitorIndex, register, control, watch, setValue, onRemov
       )}
     </div>
   )
+}
+
+/** Draw current video frame into canvas and set dataUrl */
+function theCanvas(canvas, video, setSnapData) {
+  if (!video || !canvas) return
+  const w = video.videoWidth
+  const h = video.videoHeight
+  if (!w || !h) return
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext("2d")
+  ctx.drawImage(video, 0, 0, w, h)
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.85)
+  setSnapData(dataUrl)
 }
 
 export default VisitorForm
