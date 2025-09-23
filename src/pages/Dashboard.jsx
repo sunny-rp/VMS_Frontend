@@ -3,6 +3,53 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Users, UserCheck, UserX, RotateCcw, Pause, Plus } from "lucide-react"
+import { dashboardAPI } from "../services/api"
+import { toast } from "sonner"
+
+// ---------- helpers (plain JS) ----------
+const toNumber = (v) => {
+  if (typeof v === "number" && !Number.isNaN(v)) return v
+  if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) return Number(v)
+  return 0
+}
+
+/**
+ * Safely pull a numeric count from various API shapes:
+ * - number
+ * - string number
+ * - object with one of `keys`
+ * - array of objects/numbers (use the first matching)
+ */
+const pickCount = (node, keys = []) => {
+  if (node == null) return 0
+
+  // If it's already a primitive
+  if (typeof node !== "object") return toNumber(node)
+
+  // If it's an array, scan items
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      if (typeof item !== "object") {
+        const n = toNumber(item)
+        if (n || n === 0) return n
+      } else {
+        for (const k of keys) {
+          if (k in item) {
+            const n = toNumber(item[k])
+            if (n || n === 0) return n
+          }
+        }
+      }
+    }
+    return 0
+  }
+
+  // Plain object: try keys
+  for (const k of keys) {
+    if (k in node) return toNumber(node[k])
+  }
+  return 0
+}
 
 const Dashboard = () => {
   const navigate = useNavigate()
@@ -16,23 +63,59 @@ const Dashboard = () => {
     checkedOutCount: 0,
     visitorsInside: 0,
   })
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Mock data - replace with actual API call
-    setStats({
-      oneDayPass: 0,
-      extendedPass: 0,
-      visitorsAppointment: 0,
-      pendingApprovals: 0,
-      checkedInCount: 0,
-      checkedOutCount: 0,
-      visitorsInside: 0,
-    })
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true)
+        const response = await dashboardAPI.getCountings()
+
+        // Your sample payload has shape: { statusCode, data: {...}, ... }
+        const payload =
+          (response && response.data && response.data.data) ||
+          (response && response.data) ||
+          response
+
+        setStats({
+          // e.g. data.totalPassIssued: [{ totalVisitorsPassIssued: 2 }]
+          oneDayPass: pickCount(payload?.totalPassIssued, [
+            "totalVisitorsPassIssued",
+            "passIssued",
+            "totalPassIssued",
+            "count",
+          ]),
+
+          // not in sample; keep 0 or map if your API adds it later
+          extendedPass: pickCount(payload?.extendedPass, ["extendedPass"]),
+
+          // e.g. data.totalAppointments: [{ totalAppointments: 4 }]
+          visitorsAppointment: pickCount(payload?.totalAppointments, ["totalAppointments", "appointments"]),
+
+          // e.g. data.pendingAppointments: [{ totalPendingAppointments: 4 }]
+          pendingApprovals: pickCount(payload?.pendingAppointments, ["totalPendingAppointments", "pending"]),
+
+          // e.g. data.totalCheckedInVisitors: [{ checkedInVisitors: 3 }]
+          checkedInCount: pickCount(payload?.totalCheckedInVisitors, ["checkedInVisitors", "checkedIn"]),
+
+          // e.g. data.totalCheckedOutVisitors: [{ checkedOutVisitors: 2 }]
+          checkedOutCount: pickCount(payload?.totalCheckedOutVisitors, ["checkedOutVisitors", "checkedOut"]),
+
+          // e.g. data.totalVisitorsInsideCompany: [] -> 0
+          visitorsInside: pickCount(payload?.totalVisitorsInsideCompany, ["visitorsInside", "inside"]),
+        })
+      } catch (error) {
+        console.error("Failed to fetch dashboard data:", error)
+        toast.error("Failed to load dashboard data")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDashboardData()
   }, [])
 
-  const handleCreateAppointment = () => {
-    navigate("/visitor")
-  }
+  const handleCreateAppointment = () => navigate("/visitor")
 
   const statCards = [
     {
@@ -94,23 +177,30 @@ const Dashboard = () => {
     },
   ]
 
+  const today = new Date()
+  const dateStr = today.toLocaleDateString(undefined, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  })
+
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <h1 className="text-2xl font-bold text-gray-900">VMS Dashboard</h1>
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <span>View On :</span>
-          <span className="font-medium">05/09/2025 - 05/09/2025</span>
+          <span className="font-medium">{dateStr} - {dateStr}</span>
         </div>
       </div>
 
-      {/* Stats grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat, index) => (
+        {statCards.map((stat) => (
           <div
             key={stat.name}
-            className={`card p-4 ${stat.bgColor} ${stat.isAction ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}
+            className={`card p-4 ${stat.bgColor} ${
+              stat.isAction ? "cursor-pointer hover:shadow-md transition-shadow" : ""
+            }`}
             onClick={stat.isAction ? handleCreateAppointment : undefined}
           >
             <div className="flex items-center">
@@ -120,7 +210,9 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="ml-3">
-                <p className="text-2xl font-bold text-gray-900">{stat.isAction ? "" : stat.value}</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {stat.isAction ? "" : loading ? "..." : stat.value}
+                </p>
                 <p className={`text-sm font-medium ${stat.textColor}`}>{stat.name}</p>
               </div>
             </div>
@@ -128,7 +220,6 @@ const Dashboard = () => {
         ))}
       </div>
 
-      {/* Recent activity placeholder */}
       <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
         <div className="space-y-4">

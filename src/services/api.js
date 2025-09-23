@@ -317,7 +317,7 @@ export const rolesAPI = {
   },
   update: async (roleId, roleData) => {
     return await apiClient.request(`/user/roles/edit-role/${roleId}`, {
-      method: "PATCH",
+      method: "PUT",
       body: JSON.stringify(roleData),
     })
   },
@@ -357,8 +357,6 @@ export const companiesAPI = {
   },
 }
 
-// services/api.js
-
 export const countriesAPI = {
   create: async (countryData) => {
     return await apiClient.request("/user/countries/create-country", {
@@ -366,27 +364,21 @@ export const countriesAPI = {
       body: JSON.stringify(countryData),
     })
   },
-
   getAll: async () => {
     return await apiClient.request("/user/countries/fetch-countries")
   },
-
-  // ⬇️ Use PATCH with :countryId path (backend expectation)
   update: async (countryId, countryData) => {
     return await apiClient.request(`/user/countries/edit-country/${countryId}`, {
-      method: "PATCH",
+      method: "PUT",
       body: JSON.stringify(countryData),
     })
   },
-
   delete: async (countryId) => {
     return await apiClient.request(`/user/countries/delete-country/${countryId}`, {
       method: "DELETE",
     })
   },
 }
-
-
 
 export const statesAPI = {
   create: async (stateData) => {
@@ -400,7 +392,7 @@ export const statesAPI = {
   },
   update: async (stateId, stateData) => {
     return await apiClient.request(`/user/states/edit-state/${stateId}`, {
-      method: "PATCH",
+      method: "PUT",
       body: JSON.stringify(stateData),
     })
   },
@@ -423,7 +415,7 @@ export const citiesAPI = {
   },
   update: async (cityId, cityData) => {
     return await apiClient.request(`/user/cities/edit-city/${cityId}`, {
-      method: "PATCH",
+      method: "PUT",
       body: JSON.stringify(cityData),
     })
   },
@@ -446,7 +438,7 @@ export const plantTypesAPI = {
   },
   update: async (plantTypeId, plantTypeData) => {
     return await apiClient.request(`/user/plant-types/edit-plant-type/${plantTypeId}`, {
-      method: "PATCH",
+      method: "PUT",
       body: JSON.stringify(plantTypeData),
     })
   },
@@ -469,7 +461,7 @@ export const plantsAPI = {
   },
   update: async (plantId, plantData) => {
     return await apiClient.request(`/user/plants/edit-plant/${plantId}`, {
-      method: "PATCH",
+      method: "PUT",
       body: JSON.stringify(plantData),
     })
   },
@@ -492,7 +484,7 @@ export const departmentsAPI = {
   },
   update: async (departmentId, departmentData) => {
     return await apiClient.request(`/user/departments/edit-department/${departmentId}`, {
-      method: "PATCH",
+      method: "PUT",
       body: JSON.stringify(departmentData),
     })
   },
@@ -515,7 +507,7 @@ export const gatesAPI = {
   },
   update: async (gateId, gateData) => {
     return await apiClient.request(`/user/gates/edit-gate/${gateId}`, {
-      method: "PATCH",
+      method: "PUT",
       body: JSON.stringify(gateData),
     })
   },
@@ -538,7 +530,7 @@ export const areasAPI = {
   },
   update: async (areaId, areaData) => {
     return await apiClient.request(`/user/areas/edit-area/${areaId}`, {
-      method: "PATCH",
+      method: "PUT",
       body: JSON.stringify(areaData),
     })
   },
@@ -600,5 +592,11 @@ export const appointmentsAPI = {
       method: "POST",
       body: JSON.stringify(requestData),
     })
+  },
+}
+
+export const dashboardAPI = {
+  getCountings: async () => {
+    return await apiClient.request("/user/dashboard/countings")
   },
 }
