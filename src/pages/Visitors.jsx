@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { appointmentsAPI, usersAPI, plantsAPI, departmentsAPI, areasAPI } from "../services/api"
-import { Plus, Search, X, Calendar, Camera } from "lucide-react"
+import { Plus, Search, X } from "lucide-react"
 import { toast } from "sonner"
+import VisitorForm from "./VisitorForm"
 
 const Visitors = () => {
   const [visitors, setVisitors] = useState([])
@@ -12,6 +13,9 @@ const Visitors = () => {
   const [searchVisitor, setSearchVisitor] = useState("")
   const [searchPersonToVisit, setSearchPersonToVisit] = useState("")
   const [showForm, setShowForm] = useState(false)
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false)
+  const [selectedVisitor, setSelectedVisitor] = useState(null)
+  const [checkingOut, setCheckingOut] = useState(false)
 
   const [formData, setFormData] = useState({
     plant: "",
@@ -81,6 +85,7 @@ const Visitors = () => {
 
       const transformedVisitors = activeAppointments.map((appointment, index) => ({
         id: appointment.appointmentId || appointment._id || `APP${index + 1}`,
+        appointmentId: appointment.appointmentId || appointment._id,
         name: appointment.visitors?.[0]?.fullname?.toUpperCase() || "UNKNOWN VISITOR",
         mobile: appointment.visitors?.[0]?.mobile || "N/A",
         company: appointment.visitors?.[0]?.company || "N/A",
@@ -217,6 +222,41 @@ const Visitors = () => {
     setBelongings([])
   }
 
+  const handleCheckoutClick = (visitor) => {
+    setSelectedVisitor(visitor)
+    setShowCheckoutModal(true)
+  }
+
+  const handleCheckoutConfirm = async () => {
+    if (!selectedVisitor) return
+
+    try {
+      setCheckingOut(true)
+      console.log("[v0] Checking out visitor:", selectedVisitor.appointmentId)
+
+      const response = await appointmentsAPI.checkOut(selectedVisitor.appointmentId)
+
+      if (response.success) {
+        toast.success(`${selectedVisitor.name} has been checked out successfully!`)
+        setShowCheckoutModal(false)
+        setSelectedVisitor(null)
+        loadData() // Reload the appointments list
+      } else {
+        toast.error("Failed to check out visitor. Please try again.")
+      }
+    } catch (error) {
+      console.error("[v0] Error checking out visitor:", error)
+      toast.error("Error checking out visitor: " + (error.message || "Unknown error"))
+    } finally {
+      setCheckingOut(false)
+    }
+  }
+
+  const handleCheckoutCancel = () => {
+    setShowCheckoutModal(false)
+    setSelectedVisitor(null)
+  }
+
   return (
     <div className="p-6">
       {!showForm ? (
@@ -327,7 +367,10 @@ const Visitors = () => {
                           <button className="flex-1 bg-blue-50 text-blue-600 py-2 px-3 rounded text-sm font-medium hover:bg-blue-100 transition-colors">
                             View Details
                           </button>
-                          <button className="flex-1 bg-red-50 text-red-600 py-2 px-3 rounded text-sm font-medium hover:bg-red-100 transition-colors">
+                          <button
+                            onClick={() => handleCheckoutClick(visitor)}
+                            className="flex-1 bg-red-50 text-red-600 py-2 px-3 rounded text-sm font-medium hover:bg-red-100 transition-colors"
+                          >
                             Check Out
                           </button>
                         </div>
@@ -349,282 +392,61 @@ const Visitors = () => {
         </>
       ) : (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          {/* Form Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <h2 className="text-xl font-semibold text-gray-900">Visitor Entry</h2>
             <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
               <X className="w-6 h-6" />
             </button>
           </div>
-
           <div className="p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              {/* Left side - Form fields */}
-              <div className="lg:col-span-3 space-y-6">
-                {/* Top row */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Plant <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.plant}
-                      onChange={(e) => handleInputChange("plant", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Select Plant</option>
-                      {dropdownData.plants.map((plant) => (
-                        <option key={plant._id} value={plant._id}>
-                          {(plant.plantName || plant.name || "").toUpperCase()}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Department <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.department}
-                      onChange={(e) => handleInputChange("department", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Select Department</option>
-                      {dropdownData.departments.map((dept) => (
-                        <option key={dept._id} value={dept._id}>
-                          {(dept.departmentName || dept.name || "").toUpperCase()}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Person to Visit <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.personToVisit}
-                      onChange={(e) => handleInputChange("personToVisit", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Person to Visit</option>
-                      {dropdownData.users.map((user) => (
-                        <option key={user._id} value={user._id}>
-                          {(user.fullname || user.name || "").toUpperCase()}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+            <VisitorForm
+              onSuccess={() => {
+                setShowForm(false)
+                loadData() // Reload the appointments list
+              }}
+            />
+          </div>
+        </div>
+      )}
 
-                {/* Second row */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Area To Visit <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.areaToVisit}
-                      onChange={(e) => handleInputChange("areaToVisit", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Area To Visit</option>
-                      {dropdownData.areas.map((area) => (
-                        <option key={area._id} value={area._id}>
-                          {(area.areaName || area.name || "").toUpperCase()}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Appointment Date <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="datetime-local"
-                        value={formData.appointmentDate}
-                        onChange={(e) => handleInputChange("appointmentDate", e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                      <Calendar className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Appointment Valid Till <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="datetime-local"
-                        value={formData.appointmentValidTill}
-                        onChange={(e) => handleInputChange("appointmentValidTill", e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                      <Calendar className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
-                    </div>
-                  </div>
-                </div>
+      {/* Checkout confirmation modal */}
+      {showCheckoutModal && selectedVisitor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Confirm Check Out</h3>
+                <button onClick={handleCheckoutCancel} className="text-gray-400 hover:text-gray-600 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-                {/* Third row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Purpose Of Visit <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.purposeOfVisit}
-                      onChange={(e) => handleInputChange("purposeOfVisit", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Purpose Of Visit</option>
-                      <option value="Interview">INTERVIEW</option>
-                      <option value="Service">SERVICE</option>
-                      <option value="Meeting">MEETING</option>
-                      <option value="Training">TRAINING</option>
-                      <option value="Others">OTHERS</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Visitor Information */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Visitor Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Mobile No <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="tel"
-                        value={formData.visitors[0]?.mobile || ""}
-                        onChange={(e) => handleInputChange("visitor.mobile", e.target.value)}
-                        placeholder="Enter Mobile No"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Full Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.visitors[0]?.fullname || ""}
-                        onChange={(e) => handleInputChange("visitor.fullname", e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Company</label>
-                      <input
-                        type="text"
-                        value={formData.visitors[0]?.company || ""}
-                        onChange={(e) => handleInputChange("visitor.company", e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                      <input
-                        type="email"
-                        value={formData.visitors[0]?.email || ""}
-                        onChange={(e) => handleInputChange("visitor.email", e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Belongings */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Belongings</h3>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    {belongings.length === 0 ? (
-                      <div className="text-center py-8">
-                        <button
-                          onClick={addBelonging}
-                          className="bg-green-500 text-white w-10 h-10 rounded-full flex items-center justify-center hover:bg-green-600 mx-auto"
-                        >
-                          <Plus className="w-5 h-5" />
-                        </button>
-                        <p className="text-gray-500 text-sm mt-2">Click + to add belongings</p>
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="bg-blue-50">
-                              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Action</th>
-                              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Asset Name</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {belongings.map((item) => (
-                              <tr key={item.id} className="border-b border-gray-200">
-                                <td className="px-4 py-2">
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={addBelonging}
-                                      className="bg-green-500 text-white w-6 h-6 rounded flex items-center justify-center hover:bg-green-600"
-                                    >
-                                      +
-                                    </button>
-                                    <button
-                                      onClick={() => removeBelonging(item.id)}
-                                      className="bg-red-500 text-white w-6 h-6 rounded flex items-center justify-center hover:bg-red-600"
-                                    >
-                                      ×
-                                    </button>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-2">
-                                  <input
-                                    type="text"
-                                    value={item.assetName}
-                                    onChange={(e) => updateBelonging(item.id, "assetName", e.target.value)}
-                                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                  />
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        <div className="mt-4 text-sm text-blue-600">
-                          Showing 1 to {belongings.length} of {belongings.length} Entries
-                        </div>
-                      </div>
-                    )}
-                  </div>
+              <div className="mb-6">
+                <p className="text-gray-600 mb-2">Are you sure you want to check out the following visitor?</p>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="font-semibold text-gray-900">{selectedVisitor.name}</p>
+                  <p className="text-sm text-gray-600">ID: {selectedVisitor.id}</p>
+                  <p className="text-sm text-gray-600">Company: {selectedVisitor.company}</p>
+                  <p className="text-sm text-gray-600">Person to Visit: {selectedVisitor.personToVisit}</p>
                 </div>
               </div>
 
-              {/* Right side - Photo placeholder */}
-              <div className="lg:col-span-1">
-                <div className="bg-gray-100 rounded-lg p-6 text-center h-64 flex flex-col items-center justify-center">
-                  <div className="w-24 h-24 bg-gray-300 rounded-full mb-4 flex items-center justify-center">
-                    <Camera className="w-8 h-8 text-gray-500" />
-                  </div>
-                  <p className="text-gray-500 text-sm mb-4">NO IMAGE</p>
-                  <button className="bg-green-500 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-green-600">
-                    <Camera className="w-4 h-4" />
-                  </button>
-                </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCheckoutCancel}
+                  disabled={checkingOut}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCheckoutConfirm}
+                  disabled={checkingOut}
+                  className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+                >
+                  {checkingOut ? "Checking Out..." : "Yes, Check Out"}
+                </button>
               </div>
-            </div>
-
-            {/* Form Actions */}
-            <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-200">
-              <button
-                onClick={handleClear}
-                className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-              >
-                CLEAR
-              </button>
-              <button
-                onClick={handleSave}
-                className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                SAVE
-              </button>
             </div>
           </div>
         </div>

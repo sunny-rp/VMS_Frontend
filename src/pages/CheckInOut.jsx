@@ -199,9 +199,8 @@ const CheckInOut = () => {
                 placeholder="Visitor Name"
                 value={visitorName.toUpperCase()}
                 onChange={(e) => setVisitorName(e.target.value)}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  isVisitorNameFetched ? "bg-gray-100 cursor-not-allowed" : ""
-                }`}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isVisitorNameFetched ? "bg-gray-100 cursor-not-allowed" : ""
+                  }`}
                 disabled={loading || isVisitorNameFetched}
               />
             </div>
@@ -278,7 +277,8 @@ const CheckInOut = () => {
                       filteredData.map((item, index) => (
                         <tr key={index} className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm text-gray-900">{item.visitorEntryCode}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{item.visitorName}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{item.visitorName.charAt(0).toUpperCase() + item.visitorName.slice(1)}
+                          </td>
                           <td className="px-4 py-3 text-sm text-gray-900">{item.personToVisit}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">
                             {item.checkedIn !== "-" ? new Date(item.checkedIn).toLocaleString() : "-"}

@@ -96,24 +96,24 @@ const Sidebar = ({ isOpen, onClose }) => {
       ],
       roles: ["admin", "super_admin"],
     },
-    {
-      id: "connections",
-      name: "APPROVAL",
-      icon: LinkIcon,
-      items: [
-        {
-          name: "Approval Configuration",
-          href: "/approval-configuration",
-          roles: ["admin", "super_admin"],
-        },
-        {
-          name: "WorkFlow",
-          href: "/workflow",
-          roles: ["admin", "super_admin"],
-        },
-      ],
-      roles: ["admin", "super_admin"],
-    },
+    // {
+    //   id: "connections",
+    //   name: "APPROVAL",
+    //   icon: LinkIcon,
+    //   items: [
+    //     {
+    //       name: "Approval Configuration",
+    //       href: "/approval-configuration",
+    //       roles: ["admin", "super_admin"],
+    //     },
+    //     {
+    //       name: "WorkFlow",
+    //       href: "/workflow",
+    //       roles: ["admin", "super_admin"],
+    //     },
+    //   ],
+    //   roles: ["admin", "super_admin"],
+    // },
     {
       id: "badges",
       name: "VISITOR MANAGEMENT",

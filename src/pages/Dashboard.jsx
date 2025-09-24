@@ -6,51 +6,6 @@ import { Users, UserCheck, UserX, RotateCcw, Pause, Plus } from "lucide-react"
 import { dashboardAPI } from "../services/api"
 import { toast } from "sonner"
 
-// ---------- helpers (plain JS) ----------
-const toNumber = (v) => {
-  if (typeof v === "number" && !Number.isNaN(v)) return v
-  if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) return Number(v)
-  return 0
-}
-
-/**
- * Safely pull a numeric count from various API shapes:
- * - number
- * - string number
- * - object with one of `keys`
- * - array of objects/numbers (use the first matching)
- */
-const pickCount = (node, keys = []) => {
-  if (node == null) return 0
-
-  // If it's already a primitive
-  if (typeof node !== "object") return toNumber(node)
-
-  // If it's an array, scan items
-  if (Array.isArray(node)) {
-    for (const item of node) {
-      if (typeof item !== "object") {
-        const n = toNumber(item)
-        if (n || n === 0) return n
-      } else {
-        for (const k of keys) {
-          if (k in item) {
-            const n = toNumber(item[k])
-            if (n || n === 0) return n
-          }
-        }
-      }
-    }
-    return 0
-  }
-
-  // Plain object: try keys
-  for (const k of keys) {
-    if (k in node) return toNumber(node[k])
-  }
-  return 0
-}
-
 const Dashboard = () => {
   const navigate = useNavigate()
 
@@ -63,46 +18,45 @@ const Dashboard = () => {
     checkedOutCount: 0,
     visitorsInside: 0,
   })
+
+  const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
+  const [activitiesLoading, setActivitiesLoading] = useState(true)
+
+  const capitalizeFirstLetter = (str) => {
+    if (!str) return str
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
+  }
+
+  const formatTimeAgo = (timestamp) => {
+    const now = new Date()
+    const activityTime = new Date(timestamp)
+    const diffInMs = now - activityTime
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60))
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60))
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
+
+    if (diffInMinutes < 1) return "Just now"
+    if (diffInMinutes < 60) return `${diffInMinutes} minute${diffInMinutes > 1 ? "s" : ""} ago`
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? "s" : ""} ago`
+    return `${diffInDays} day${diffInDays > 1 ? "s" : ""} ago`
+  }
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true)
         const response = await dashboardAPI.getCountings()
-
-        // Your sample payload has shape: { statusCode, data: {...}, ... }
-        const payload =
-          (response && response.data && response.data.data) ||
-          (response && response.data) ||
-          response
+        const data = response.data || response
 
         setStats({
-          // e.g. data.totalPassIssued: [{ totalVisitorsPassIssued: 2 }]
-          oneDayPass: pickCount(payload?.totalPassIssued, [
-            "totalVisitorsPassIssued",
-            "passIssued",
-            "totalPassIssued",
-            "count",
-          ]),
-
-          // not in sample; keep 0 or map if your API adds it later
-          extendedPass: pickCount(payload?.extendedPass, ["extendedPass"]),
-
-          // e.g. data.totalAppointments: [{ totalAppointments: 4 }]
-          visitorsAppointment: pickCount(payload?.totalAppointments, ["totalAppointments", "appointments"]),
-
-          // e.g. data.pendingAppointments: [{ totalPendingAppointments: 4 }]
-          pendingApprovals: pickCount(payload?.pendingAppointments, ["totalPendingAppointments", "pending"]),
-
-          // e.g. data.totalCheckedInVisitors: [{ checkedInVisitors: 3 }]
-          checkedInCount: pickCount(payload?.totalCheckedInVisitors, ["checkedInVisitors", "checkedIn"]),
-
-          // e.g. data.totalCheckedOutVisitors: [{ checkedOutVisitors: 2 }]
-          checkedOutCount: pickCount(payload?.totalCheckedOutVisitors, ["checkedOutVisitors", "checkedOut"]),
-
-          // e.g. data.totalVisitorsInsideCompany: [] -> 0
-          visitorsInside: pickCount(payload?.totalVisitorsInsideCompany, ["visitorsInside", "inside"]),
+          oneDayPass: data.oneDayPass || data.passIssued || 0,
+          extendedPass: data.extendedPass || 0,
+          visitorsAppointment: data.visitorsAppointment || data.appointments || 0,
+          pendingApprovals: data.pendingApprovals || data.pending || 0,
+          checkedInCount: data.checkedInCount || data.checkedIn || 0,
+          checkedOutCount: data.checkedOutCount || data.checkedOut || 0,
+          visitorsInside: data.visitorsInside || data.inside || 0,
         })
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error)
@@ -112,10 +66,72 @@ const Dashboard = () => {
       }
     }
 
+    const fetchActivities = async () => {
+      try {
+        setActivitiesLoading(true)
+        const response = await dashboardAPI.getActivities()
+        const data = response.data || response
+
+        let processedActivities = []
+
+        if (data.checkedinActivities && Array.isArray(data.checkedinActivities)) {
+          const checkinActivities = data.checkedinActivities.flatMap((activity) =>
+            activity.visitors.map((visitor) => ({
+              id: `${activity._id}-${visitor._id}-checkin`,
+              visitorName: capitalizeFirstLetter(visitor.fullname),
+              company: visitor.company || "Unknown Company",
+              type: "checkin",
+              action: "check_in",
+              mobile: visitor.mobile,
+              email: visitor.email,
+              belongings: visitor.belongings,
+              createdAt: new Date(activity.updatedAt),
+              timeAgo: formatTimeAgo(activity.updatedAt),
+            })),
+          )
+          processedActivities.push(...checkinActivities)
+        }
+
+        if (data.checkedOutActivities && Array.isArray(data.checkedOutActivities)) {
+          const checkoutActivities = data.checkedOutActivities.flatMap((activity) =>
+            activity.visitors.map((visitor) => ({
+              id: `${activity._id}-${visitor._id}-checkout`,
+              visitorName: capitalizeFirstLetter(visitor.fullname),
+              company: visitor.company || "Unknown Company",
+              type: "checkout",
+              action: "check_out",
+              mobile: visitor.mobile,
+              email: visitor.email,
+              belongings: visitor.belongings,
+              createdAt: new Date(activity.updatedAt),
+              timeAgo: formatTimeAgo(activity.updatedAt),
+            })),
+          )
+          processedActivities.push(...checkoutActivities)
+        }
+
+        processedActivities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
+        // Limit to recent activities (e.g., last 10)
+        processedActivities = processedActivities.slice(0, 10)
+
+        setActivities(processedActivities)
+      } catch (error) {
+        console.error("Failed to fetch activities:", error)
+        toast.error("Failed to load recent activities")
+        setActivities([])
+      } finally {
+        setActivitiesLoading(false)
+      }
+    }
+
     fetchDashboardData()
+    fetchActivities()
   }, [])
 
-  const handleCreateAppointment = () => navigate("/visitor")
+  const handleCreateAppointment = () => {
+    navigate("/visitor")
+  }
 
   const statCards = [
     {
@@ -177,30 +193,21 @@ const Dashboard = () => {
     },
   ]
 
-  const today = new Date()
-  const dateStr = today.toLocaleDateString(undefined, {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  })
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">VMS Dashboard</h1>
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <span>View On :</span>
-          <span className="font-medium">{dateStr} - {dateStr}</span>
+          <span className="font-medium">05/09/2025 - 05/09/2025</span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat) => (
+        {statCards.map((stat, index) => (
           <div
             key={stat.name}
-            className={`card p-4 ${stat.bgColor} ${
-              stat.isAction ? "cursor-pointer hover:shadow-md transition-shadow" : ""
-            }`}
+            className={`card p-4 ${stat.bgColor} ${stat.isAction ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}
             onClick={stat.isAction ? handleCreateAppointment : undefined}
           >
             <div className="flex items-center">
@@ -210,9 +217,7 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="ml-3">
-                <p className="text-2xl font-bold text-gray-900">
-                  {stat.isAction ? "" : loading ? "..." : stat.value}
-                </p>
+                <p className="text-2xl font-bold text-gray-900">{stat.isAction ? "" : loading ? "..." : stat.value}</p>
                 <p className={`text-sm font-medium ${stat.textColor}`}>{stat.name}</p>
               </div>
             </div>
@@ -223,28 +228,43 @@ const Dashboard = () => {
       <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
         <div className="space-y-4">
-          <div className="flex items-center justify-between py-3 border-b border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                <UserCheck size={16} className="text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">Suhail checked in</p>
-                <p className="text-xs text-gray-500">M A Enterprise • 2 minutes ago</p>
-              </div>
+          {activitiesLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-gray-500">Loading activities...</div>
             </div>
-          </div>
-          <div className="flex items-center justify-between py-3 border-b border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                <UserX size={16} className="text-gray-600" />
+          ) : activities.length > 0 ? (
+            activities.map((activity, index) => (
+              <div
+                key={activity.id || index}
+                className="flex items-center justify-between py-3 border-b border-gray-100"
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-8 h-8 ${activity.type === "checkin" || activity.action === "check_in" ? "bg-green-100" : "bg-red-100"} rounded-full flex items-center justify-center`}
+                  >
+                    {activity.type === "checkin" || activity.action === "check_in" ? (
+                      <UserCheck size={16} className="text-green-600" />
+                    ) : (
+                      <UserX size={16} className="text-red-600" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      {activity.visitorName || capitalizeFirstLetter(activity.visitor_name) || "Unknown Visitor"}{" "}
+                      {activity.type === "checkin" || activity.action === "check_in" ? "checked in" : "checked out"}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {activity.company || "Unknown Company"} • {activity.timeAgo || "Recently"}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">Arun Parihar checked out</p>
-                <p className="text-xs text-gray-500">Versatile Bonds Pvt Ltd • 15 minutes ago</p>
-              </div>
+            ))
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-gray-500">No recent activities</div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

@@ -599,4 +599,7 @@ export const dashboardAPI = {
   getCountings: async () => {
     return await apiClient.request("/user/dashboard/countings")
   },
+   getActivities: async () => {
+    return await apiClient.request("/user/dashboard/activities")
+  },
 }
