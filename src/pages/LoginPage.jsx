@@ -107,7 +107,7 @@ const LoginPage = () => {
                 </div>
               </div>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900">SHUFAB</h2>
+            <h2 className="text-2xl font-bold text-gray-900">NATH ARTS</h2>
             <p className="text-gray-600 mt-1">Visitor Management System</p>
           </div>
 
