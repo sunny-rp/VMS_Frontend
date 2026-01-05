@@ -35,15 +35,17 @@ import VehicleInvoiceReport from "./pages/VehicleInvoiceReport"
 import FeedbackReport from "./pages/FeedbackReport"
 import PlantType from "./pages/PlantType"
 import VisitorForm from "./pages/VisitorForm"
+import PublicAppointmentDetails from "./pages/PublicAppointmentDetails"
+
 
 const AuthGate = ({ children }) => {
   const { isLoading } = useAuth()
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center space-y-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="text-sm text-gray-600">Loading...</p>
+          <div className="spinner h-8 w-8"></div>
+          <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
     )
@@ -78,6 +80,7 @@ function App() {
         />
 
         <Route path="/visitorform" element={<VisitorForm />} />
+        <Route path="/appointment/:appointmentId" element={<PublicAppointmentDetails />} />
 
         <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
 

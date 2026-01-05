@@ -428,13 +428,13 @@ export const citiesAPI = {
 
 export const plantTypesAPI = {
   create: async (plantTypeData) => {
-    return await apiClient.request("/user/plant-types/create-plant-type", {
+    return await apiClient.request("/plant-types/create-plant-type", {
       method: "POST",
       body: JSON.stringify(plantTypeData),
     })
   },
   getAll: async () => {
-    return await apiClient.request("/user/plant-types/fetch-plant-types")
+    return await apiClient.request("/plant-types/fetch-plant-types")
   },
   update: async (plantTypeId, plantTypeData) => {
     return await apiClient.request(`/user/plant-types/edit-plant-type/${plantTypeId}`, {
@@ -451,13 +451,13 @@ export const plantTypesAPI = {
 
 export const plantsAPI = {
   create: async (plantData) => {
-    return await apiClient.request("/user/plants/create-plant", {
+    return await apiClient.request("/plants/create-plant", {
       method: "POST",
       body: JSON.stringify(plantData),
     })
   },
   getAll: async () => {
-    return await apiClient.request("/user/plants/fetch-plants")
+    return await apiClient.request("/plants/fetch-plants")
   },
   update: async (plantId, plantData) => {
     return await apiClient.request(`/user/plants/edit-plant/${plantId}`, {
@@ -559,6 +559,14 @@ export const appointmentsAPI = {
   getById: async (appointmentId) => {
     return await apiClient.request(`/user/appointments/${appointmentId}`)
   },
+  getPublicById: async (appointmentId) => {
+    const API_BASE_URL = import.meta.env.VITE_PUBLIC_API_BASE_URL || "http://localhost:5000/api/v1"
+    const response = await fetch(`${API_BASE_URL}/user/appointments/${appointmentId}`)
+    if (!response.ok) {
+      throw new Error("Appointment not found")
+    }
+    return await response.json()
+  },
   fetchVisitorByAptId: async (appointmentId) => {
     return await apiClient.request(`/user/fetch-visitor-by-aptid/${appointmentId}`)
   },
@@ -599,7 +607,7 @@ export const dashboardAPI = {
   getCountings: async () => {
     return await apiClient.request("/user/dashboard/countings")
   },
-   getActivities: async () => {
+  getActivities: async () => {
     return await apiClient.request("/user/dashboard/activities")
   },
 }
