@@ -451,13 +451,13 @@ export const plantTypesAPI = {
 
 export const plantsAPI = {
   create: async (plantData) => {
-    return await apiClient.request("/plants/create-plant", {
+    return await apiClient.request("/user/plants/create-plant", {
       method: "POST",
       body: JSON.stringify(plantData),
     })
   },
   getAll: async () => {
-    return await apiClient.request("/plants/fetch-plants")
+    return await apiClient.request("/user/plants/fetch-plants")
   },
   update: async (plantId, plantData) => {
     return await apiClient.request(`/user/plants/edit-plant/${plantId}`, {
