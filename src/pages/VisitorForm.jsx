@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useForm, useFieldArray } from "react-hook-form"
 import { Plus, Minus, User, Package, Calendar, Printer, ArrowLeft, Loader2 } from "lucide-react"
-import { plantsAPI, departmentsAPI, usersAPI, appointmentsAPI, companiesAPI } from "../services/api"
+import { plantsAPI, departmentsAPI, usersAPI, appointmentsAPI, companiesAPI, areasAPI } from "../services/api"
 import { toast } from "sonner"
 
 const VisitorForm = () => {
@@ -17,6 +17,7 @@ const VisitorForm = () => {
   const [users, setUsers] = useState([])
   const [filteredUsers, setFilteredUsers] = useState([])
   const [companies, setCompanies] = useState([])
+  const [areas, setAreas] = useState([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -71,14 +72,15 @@ const VisitorForm = () => {
         setError("") // Clear error at the start of loading
         console.log("[v0] Loading form data with URL params:", { plantIdFromUrl, companyIdFromUrl })
 
-        const [plantsRes, departmentsRes, usersRes, companiesRes] = await Promise.all([
+        const [plantsRes, departmentsRes, usersRes, companiesRes, areasRes] = await Promise.all([
           plantsAPI.getAll(),
           departmentsAPI.getAll(),
           usersAPI.getAll(),
           companiesAPI.getAll(),
+          areasAPI.getAll(),
         ])
 
-        console.log("[v0] Raw API responses:", { plantsRes, departmentsRes, usersRes, companiesRes })
+        console.log("[v0] Raw API responses:", { plantsRes, departmentsRes, usersRes, companiesRes, areasRes })
 
         const plantsData = Array.isArray(plantsRes?.data?.data)
           ? plantsRes.data.data
@@ -104,6 +106,14 @@ const VisitorForm = () => {
             ? companiesRes.data
             : []
 
+        const areasData = Array.isArray(areasRes?.data?.areas)
+          ? areasRes.data.areas
+          : Array.isArray(areasRes?.data?.data)
+            ? areasRes.data.data
+            : Array.isArray(areasRes?.data)
+              ? areasRes.data
+              : []
+
         console.log("[v0] Extracted arrays:", {
           plants: plantsData,
           plantsCount: plantsData.length,
@@ -113,12 +123,15 @@ const VisitorForm = () => {
           usersCount: usersData.length,
           companies: companiesData,
           companiesCount: companiesData.length,
+          areas: areasData,
+          areasCount: areasData.length,
         })
 
         setPlants(plantsData)
         setDepartments(departmentsData)
         setUsers(usersData)
         setCompanies(companiesData)
+        setAreas(areasData)
 
         if (plantIdFromUrl && plantsData.length > 0) {
           const matchingPlant = plantsData.find((p) => p._id === plantIdFromUrl || p.id === plantIdFromUrl)
@@ -146,7 +159,8 @@ const VisitorForm = () => {
           plantsData.length === 0 &&
           departmentsData.length === 0 &&
           usersData.length === 0 &&
-          companiesData.length === 0
+          companiesData.length === 0 &&
+          areasData.length === 0
         ) {
           console.warn("[v0] No data loaded from any API")
           toast.error("No form data available. Please contact your administrator.")
@@ -232,11 +246,11 @@ const VisitorForm = () => {
         return
       }
       if (!visitor.mobile?.trim()) {
-        setError(`Visitor ${i + 1}: Mobile number is required`)
+        setError(`Visitor ${i + 1}: WhatsApp number is required`)
         return
       }
       if (!isPhoneNumber(visitor.mobile)) {
-        setError(`Visitor ${i + 1}: Mobile must be 10-15 digits`)
+        setError(`Visitor ${i + 1}: WhatsApp must be 10-15 digits`)
         return
       }
       if (visitor.email && !isEmail(visitor.email)) {
@@ -399,7 +413,7 @@ const VisitorForm = () => {
                       <p className="font-semibold">{visitor.fullname}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Mobile</p>
+                      <p className="text-sm text-gray-600">WhatsApp</p>
                       <p className="font-semibold">{visitor.mobile}</p>
                     </div>
                     {visitor.company && (
@@ -489,7 +503,7 @@ const VisitorForm = () => {
                     <option value="">Select Plant</option>
                     {plants.map((plant) => (
                       <option key={plant._id || plant.id || plant.plantName} value={plant._id || plant.id}>
-                        {plant.plantName || plant.name}
+                        {(plant.plantName || plant.name || "").toUpperCase()}
                       </option>
                     ))}
                   </select>
@@ -505,7 +519,7 @@ const VisitorForm = () => {
                     <option value="">Select Department</option>
                     {departments.map((dept) => (
                       <option key={dept._id || dept.id || dept.departmentName} value={dept._id || dept.id}>
-                        {dept.departmentName || dept.name}
+                        {(dept.departmentName || dept.name || "").toUpperCase()}
                       </option>
                     ))}
                   </select>
@@ -521,7 +535,7 @@ const VisitorForm = () => {
                     <option value="">Select Person</option>
                     {filteredUsers.map((user) => (
                       <option key={user._id} value={user._id}>
-                        {user.fullname || user.name}
+                        {(user.fullname || user.name || "").toUpperCase()}
                       </option>
                     ))}
                   </select>
@@ -529,12 +543,17 @@ const VisitorForm = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Area to Visit *</label>
-                  <input
+                  <select
                     {...register("areaToVisit")}
-                    type="text"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter area to visit"
-                  />
+                  >
+                    <option value="">Select Area</option>
+                    {areas.map((area) => (
+                      <option key={area._id || area.id} value={area.areaName}>
+                        {(area.areaName || "").toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -562,11 +581,11 @@ const VisitorForm = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Purpose</option>
-                    <option value="Interview">Interview</option>
-                    <option value="Service">Service</option>
-                    <option value="Meeting">Meeting</option>
-                    <option value="Training">Training</option>
-                    <option value="Others">Others</option>
+                    <option value="Interview">INTERVIEW</option>
+                    <option value="Service">SERVICE</option>
+                    <option value="Meeting">MEETING</option>
+                    <option value="Training">TRAINING</option>
+                    <option value="Others">OTHERS</option>
                   </select>
                 </div>
               </div>
@@ -663,12 +682,12 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div className="sm:col-span-2 sm:grid sm:grid-cols-2 sm:gap-4 space-y-4 sm:space-y-0">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Mobile Number *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">WhatsApp Number *</label>
             <input
               {...register(`visitors.${visitorIndex}.mobile`)}
               type="tel"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-              placeholder="Enter mobile number"
+              placeholder="Enter WhatsApp number"
             />
           </div>
 
