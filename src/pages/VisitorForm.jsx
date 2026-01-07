@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useForm, useFieldArray } from "react-hook-form"
-import { Plus, Minus, User, Package, Calendar, Printer, ArrowLeft, Loader2 } from "lucide-react"
+import { Plus, Minus, User, Package, Calendar, Loader2 } from "lucide-react"
 import { plantsAPI, departmentsAPI, usersAPI, appointmentsAPI, companiesAPI, areasAPI } from "../services/api"
 import { toast } from "sonner"
 
@@ -353,126 +353,16 @@ const VisitorForm = () => {
 
   if (success && successData) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-4xl mx-auto px-4">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center py-8">
+        <div className="max-w-md mx-auto px-4">
           <div className="bg-white rounded-lg shadow-lg p-8">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="text-center">
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Appointment Created Successfully!</h1>
-              <p className="text-gray-600">Your visitor appointment has been scheduled.</p>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg p-6 mb-8">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Appointment Details</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">Appointment ID</p>
-                  <p className="font-semibold">{successData.appointmentId || "N/A"}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Plant</p>
-                  <p className="font-semibold">
-                    {plants.find((p) => p._id === successData.plant)?.plantName ||
-                      plants.find((p) => p._id === successData.plant)?.name ||
-                      successData.plant}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Department</p>
-                  <p className="font-semibold">
-                    {departments.find((d) => d._id === successData.department)?.departmentName ||
-                      departments.find((d) => d._id === successData.department)?.name ||
-                      successData.department}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Person to Visit</p>
-                  <p className="font-semibold">
-                    {users.find((u) => u._id === successData.personToVisit)?.fullname ||
-                      users.find((u) => u._id === successData.personToVisit)?.name ||
-                      successData.personToVisit}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Area to Visit</p>
-                  <p className="font-semibold">{successData.areaToVisit}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Appointment Date</p>
-                  <p className="font-semibold">{new Date(successData.appointmentDate).toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Valid Till</p>
-                  <p className="font-semibold">{new Date(successData.appointmentValidTill).toLocaleString()}</p>
-                </div>
-                <div className="md:col-span-2">
-                  <p className="text-sm text-gray-600">Purpose of Visit</p>
-                  <p className="font-semibold">{successData.purposeOfVisit}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg p-6 mb-8">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Visitors</h2>
-              {successData.visitors?.map((visitor, index) => (
-                <div key={index} className="border-b border-gray-200 pb-4 mb-4 last:border-b-0 last:mb-0">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-600">Full Name</p>
-                      <p className="font-semibold">{visitor.fullname}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">WhatsApp</p>
-                      <p className="font-semibold">{visitor.mobile}</p>
-                    </div>
-                    {visitor.company && (
-                      <div>
-                        <p className="text-sm text-gray-600">Company</p>
-                        <p className="font-semibold">{visitor.company}</p>
-                      </div>
-                    )}
-                    {visitor.email && (
-                      <div>
-                        <p className="text-sm text-gray-600">Email</p>
-                        <p className="font-semibold">{visitor.email}</p>
-                      </div>
-                    )}
-                    {visitor.belongings?.length > 0 && (
-                      <div className="md:col-span-2">
-                        <p className="text-sm text-gray-600">Belongings</p>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {visitor.belongings.map((belonging, bIndex) => (
-                            <span key={bIndex} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
-                              {belonging.assetName}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button
-                onClick={handlePrint}
-                className="flex items-center justify-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Printer className="w-5 h-5 mr-2" />
-                Print
-              </button>
-              <button
-                onClick={handleBackToForm}
-                className="flex items-center justify-center px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5 mr-2" />
-                Back to Form
-              </button>
+              <h1 className="text-3xl font-bold text-gray-900">Appointment Created Successfully!</h1>
             </div>
           </div>
         </div>
