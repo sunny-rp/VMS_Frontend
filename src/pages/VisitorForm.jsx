@@ -1,47 +1,27 @@
-"use client";
+"use client"
 
-import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
-import { useForm, useFieldArray } from "react-hook-form";
-import {
-  Plus,
-  Minus,
-  User,
-  Package,
-  Calendar,
-  Printer,
-  ArrowLeft,
-  Loader2,
-} from "lucide-react";
-import {
-  plantsAPI,
-  departmentsAPI,
-  usersAPI,
-  appointmentsAPI,
-  companiesAPI,
-  areasAPI,
-} from "../services/api";
-import { toast } from "sonner";
+import { useState, useEffect, useMemo } from "react"
+import { useSearchParams } from "react-router-dom"
+import { useForm, useFieldArray } from "react-hook-form"
+import { Plus, Minus, User, Package, Calendar, Printer, ArrowLeft, Loader2 } from "lucide-react"
+import { plantsAPI, departmentsAPI, usersAPI, appointmentsAPI, companiesAPI, areasAPI } from "../services/api"
+import { toast } from "sonner"
 
 const VisitorForm = () => {
-  const [searchParams] = useSearchParams();
-  const plantIdFromUrl = searchParams.get("plantId");
-  const companyIdFromUrl = searchParams.get("companyId");
+  const [searchParams] = useSearchParams()
+  const plantIdFromUrl = searchParams.get("plantId")
+  const companyIdFromUrl = searchParams.get("companyId")
 
-  const [plants, setPlants] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [companies, setCompanies] = useState([]);
-  const [areas, setAreas] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [successData, setSuccessData] = useState(null);
-  const [error, setError] = useState("");
-
-  // ✅ NEW: prevent select from flickering while open
-  const [isPersonSelectOpen, setIsPersonSelectOpen] = useState(false);
-  const [stableFilteredUsers, setStableFilteredUsers] = useState([]);
+  const [plants, setPlants] = useState([])
+  const [departments, setDepartments] = useState([])
+  const [users, setUsers] = useState([])
+  const [companies, setCompanies] = useState([])
+  const [areas, setAreas] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [successData, setSuccessData] = useState(null)
+  const [error, setError] = useState("")
 
   const {
     register,
@@ -71,7 +51,7 @@ const VisitorForm = () => {
       ],
       honeypot: "",
     },
-  });
+  })
 
   const {
     fields: visitorFields,
@@ -80,140 +60,123 @@ const VisitorForm = () => {
   } = useFieldArray({
     control,
     name: "visitors",
-  });
+  })
 
-  const watchedDepartment = watch("department");
-  const selectedPerson = watch("personToVisit");
+  const watchedDepartment = watch("department")
 
-  // ✅ Improved, normalized filtering (handles different user shapes)
   const filteredUsers = useMemo(() => {
-    if (!watchedDepartment) return users;
-
-    const deptId = String(watchedDepartment);
-
-    return users.filter((u) => {
-      const userDept =
-        u.department?._id ||
-        u.departmentId ||
-        u.dept?._id ||
-        u.deptId ||
-        u.department ||
-        u.dept;
-
-      if (!userDept) return false;
-
-      return String(userDept) === deptId;
-    });
-  }, [watchedDepartment, users]);
-
-  // ✅ Keep options list stable while dropdown is open
-  useEffect(() => {
-    if (!isPersonSelectOpen) {
-      setStableFilteredUsers(filteredUsers);
+    if (!watchedDepartment || users.length === 0) {
+      return users
     }
-  }, [filteredUsers, isPersonSelectOpen]);
 
-  // ✅ If department changes and selected person is not in list, clear it
-  useEffect(() => {
-    if (!selectedPerson) return;
+    const filtered = users.filter((user) => {
+      const userDepartment = user.department || user.departmentId || user.dept || user.deptId
+      return (
+        userDepartment === watchedDepartment ||
+        user.department?._id === watchedDepartment ||
+        user.departmentId === watchedDepartment
+      )
+    })
 
-    const exists = filteredUsers.some(
-      (u) => String(u._id) === String(selectedPerson)
-    );
-
-    if (!exists) {
-      setValue("personToVisit", "");
-    }
-    // only run when department changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchedDepartment]);
+    return filtered
+  }, [watchedDepartment, users])
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        setLoading(true);
-        setError("");
+        setLoading(true)
+        setError("")
+        console.log("[v0] Loading form data with URL params:", { plantIdFromUrl, companyIdFromUrl })
 
         const dataPromises = [
           plantsAPI.getAll(companyIdFromUrl),
           departmentsAPI.getAll(companyIdFromUrl),
           usersAPI.getAll(companyIdFromUrl),
           areasAPI.getAll(companyIdFromUrl),
-        ];
+        ]
 
-        const companiesPromise = companiesAPI.getAll().catch((err) => {
-          console.warn("Companies API failed, continuing:", err);
-          return { data: { data: [] } };
-        });
+        const companiesPromise = companiesAPI.getAll().catch((error) => {
+          console.warn("[v0] Companies API failed, continuing without company data:", error)
+          return { data: { data: [] } }
+        })
 
-        const [plantsRes, departmentsRes, usersRes, areasRes, companiesRes] =
-          await Promise.all([...dataPromises, companiesPromise]);
+        const [plantsRes, departmentsRes, usersRes, areasRes, companiesRes] = await Promise.all([
+          ...dataPromises,
+          companiesPromise,
+        ])
+
+        console.log("[v0] Raw API responses:", { plantsRes, departmentsRes, usersRes, companiesRes, areasRes })
 
         const plantsData = Array.isArray(plantsRes?.data?.data)
           ? plantsRes.data.data
           : Array.isArray(plantsRes?.data)
-          ? plantsRes.data
-          : [];
+            ? plantsRes.data
+            : []
 
         const departmentsData = Array.isArray(departmentsRes?.data?.data)
           ? departmentsRes.data.data
           : Array.isArray(departmentsRes?.data)
-          ? departmentsRes.data
-          : [];
+            ? departmentsRes.data
+            : []
 
         const usersData = Array.isArray(usersRes?.data?.data)
           ? usersRes.data.data
           : Array.isArray(usersRes?.data)
-          ? usersRes.data
-          : [];
+            ? usersRes.data
+            : []
 
         const companiesData = Array.isArray(companiesRes?.data?.data)
           ? companiesRes.data.data
           : Array.isArray(companiesRes?.data)
-          ? companiesRes.data
-          : [];
+            ? companiesRes.data
+            : []
 
         const areasData = Array.isArray(areasRes?.data?.areas)
           ? areasRes.data.areas
           : Array.isArray(areasRes?.data?.data)
-          ? areasRes.data.data
-          : Array.isArray(areasRes?.data)
-          ? areasRes.data
-          : [];
+            ? areasRes.data.data
+            : Array.isArray(areasRes?.data)
+              ? areasRes.data
+              : []
 
-        setPlants(plantsData);
-        setDepartments(departmentsData);
-        setUsers(usersData);
-        setCompanies(companiesData);
-        setAreas(areasData);
+        console.log("[v0] Extracted arrays:", {
+          plants: plantsData,
+          plantsCount: plantsData.length,
+          departments: departmentsData,
+          departmentsCount: departmentsData.length,
+          users: usersData,
+          usersCount: usersData.length,
+          companies: companiesData,
+          companiesCount: companiesData.length,
+          areas: areasData,
+          areasCount: areasData.length,
+        })
 
-        // set default stable list once
-        setStableFilteredUsers(usersData);
+        setPlants(plantsData)
+        setDepartments(departmentsData)
+        setUsers(usersData)
+        setCompanies(companiesData)
+        setAreas(areasData)
 
         if (plantIdFromUrl && plantsData.length > 0) {
-          const matchingPlant = plantsData.find(
-            (p) => p._id === plantIdFromUrl || p.id === plantIdFromUrl
-          );
+          const matchingPlant = plantsData.find((p) => p._id === plantIdFromUrl || p.id === plantIdFromUrl)
           if (matchingPlant) {
-            setValue("plant", matchingPlant._id || matchingPlant.id);
-            toast.success(
-              `Plant "${matchingPlant.plantName || matchingPlant.name}" pre-selected`
-            );
+            console.log("[v0] Pre-populating plant:", matchingPlant)
+            setValue("plant", matchingPlant._id || matchingPlant.id)
+            toast.success(`Plant "${matchingPlant.plantName || matchingPlant.name}" pre-selected`)
+          } else {
+            console.warn("[v0] Plant not found for ID:", plantIdFromUrl)
           }
         }
 
         if (companyIdFromUrl && companiesData.length > 0) {
-          const matchingCompany = companiesData.find(
-            (c) => c._id === companyIdFromUrl || c.id === companyIdFromUrl
-          );
+          const matchingCompany = companiesData.find((c) => c._id === companyIdFromUrl || c.id === companyIdFromUrl)
           if (matchingCompany) {
-            setValue(
-              "visitors.0.company",
-              matchingCompany.companyName || matchingCompany.name || companyIdFromUrl
-            );
-            toast.success(
-              `Company "${matchingCompany.companyName || matchingCompany.name}" pre-selected`
-            );
+            console.log("[v0] Pre-populating company:", matchingCompany)
+            setValue("visitors.0.company", matchingCompany.companyName || matchingCompany.name || companyIdFromUrl)
+            toast.success(`Company "${matchingCompany.companyName || matchingCompany.name}" pre-selected`)
+          } else {
+            console.warn("[v0] Company not found for ID:", companyIdFromUrl)
           }
         }
 
@@ -223,67 +186,113 @@ const VisitorForm = () => {
           usersData.length === 0 &&
           areasData.length === 0
         ) {
-          toast.error("No form data available. Please contact your administrator.");
+          console.warn("[v0] No data loaded from any API")
+          toast.error("No form data available. Please contact your administrator.")
+        } else {
+          console.log("[v0] Form data loaded successfully")
         }
-      } catch (err) {
-        console.error("Error loading form data:", err);
-        toast.error("Failed to load some form data. Please try refreshing.");
-        setError("Some form data could not be loaded");
+      } catch (error) {
+        console.error("[v0] Error loading form data:", error)
+        toast.error("Failed to load some form data. Please try refreshing.")
+        setError("Some form data could not be loaded")
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
+    }
 
-    loadData();
-  }, [plantIdFromUrl, companyIdFromUrl, setValue]);
+    loadData()
+  }, [plantIdFromUrl, companyIdFromUrl, setValue])
 
   const isEmail = (input) => {
-    if (!input) return true;
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(input);
-  };
+    if (!input) return true
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(input)
+  }
 
   const isPhoneNumber = (input) => {
-    if (!input) return false;
-    const phoneRegex = /^\d{10,15}$/;
-    return phoneRegex.test(input.replace(/\s/g, ""));
-  };
+    if (!input) return false
+    const phoneRegex = /^\d{10,15}$/
+    return phoneRegex.test(input.replace(/\s/g, ""))
+  }
 
   const onSubmit = async (data) => {
-    setError("");
+    setError("")
 
-    if (!data.plant) return setError("Plant is required");
-    if (!data.department) return setError("Department is required");
-    if (!data.personToVisit) return setError("Person to visit is required");
-    if (!data.areaToVisit) return setError("Area to visit is required");
-    if (!data.appointmentDate) return setError("Appointment date is required");
-    if (!data.appointmentValidTill) return setError("Valid till date is required");
-    if (!data.purposeOfVisit) return setError("Purpose of visit is required");
+    if (!data.plant) {
+      setError("Plant is required")
+      return
+    }
+    if (!data.department) {
+      setError("Department is required")
+      return
+    }
+    if (!data.personToVisit) {
+      setError("Person to visit is required")
+      return
+    }
+    if (!data.areaToVisit) {
+      setError("Area to visit is required")
+      return
+    }
+    if (!data.appointmentDate) {
+      setError("Appointment date is required")
+      return
+    }
+    if (!data.appointmentValidTill) {
+      setError("Valid till date is required")
+      return
+    }
+    if (!data.purposeOfVisit) {
+      setError("Purpose of visit is required")
+      return
+    }
 
     if (!data.visitors || data.visitors.length === 0) {
-      return setError("At least one visitor is required");
+      setError("At least one visitor is required")
+      return
     }
 
     for (let i = 0; i < data.visitors.length; i++) {
-      const visitor = data.visitors[i];
-      if (!visitor.fullname?.trim()) return setError(`Visitor ${i + 1}: Full name is required`);
-      if (!visitor.mobile?.trim()) return setError(`Visitor ${i + 1}: WhatsApp number is required`);
-      if (!isPhoneNumber(visitor.mobile)) return setError(`Visitor ${i + 1}: WhatsApp must be 10-15 digits`);
-      if (visitor.email && !isEmail(visitor.email)) return setError(`Visitor ${i + 1}: Invalid email format`);
+      const visitor = data.visitors[i]
+      if (!visitor.fullname?.trim()) {
+        setError(`Visitor ${i + 1}: Full name is required`)
+        return
+      }
+      if (!visitor.mobile?.trim()) {
+        setError(`Visitor ${i + 1}: WhatsApp number is required`)
+        return
+      }
+      if (!isPhoneNumber(visitor.mobile)) {
+        setError(`Visitor ${i + 1}: WhatsApp must be 10-15 digits`)
+        return
+      }
+      if (visitor.email && !isEmail(visitor.email)) {
+        setError(`Visitor ${i + 1}: Invalid email format`)
+        return
+      }
     }
 
-    const appointmentDate = new Date(data.appointmentDate);
-    const validTillDate = new Date(data.appointmentValidTill);
+    const appointmentDate = new Date(data.appointmentDate)
+    const validTillDate = new Date(data.appointmentValidTill)
 
-    if (validTillDate < appointmentDate) return setError("Valid till date must be after appointment date");
+    if (validTillDate < appointmentDate) {
+      setError("Valid till date must be after appointment date")
+      return
+    }
 
-    const daysDiff = (validTillDate - appointmentDate) / (1000 * 60 * 60 * 24);
-    if (daysDiff > 7) return setError("Valid till date must be within 7 days of appointment date");
+    const daysDiff = (validTillDate - appointmentDate) / (1000 * 60 * 60 * 24)
+    if (daysDiff > 7) {
+      setError("Valid till date must be within 7 days of appointment date")
+      return
+    }
 
-    if (data.honeypot) return setError("Bot detected");
+    if (data.honeypot) {
+      setError("Bot detected")
+      return
+    }
 
     try {
-      setSubmitting(true);
+      setSubmitting(true)
 
       const appointmentData = {
         plant: data.plant,
@@ -301,28 +310,32 @@ const VisitorForm = () => {
           belongings:
             visitor.belongings
               ?.filter((b) => b.assetName?.trim())
-              .map((b) => ({ assetName: b.assetName.trim() })) || [],
+              .map((b) => ({
+                assetName: b.assetName.trim(),
+              })) || [],
         })),
-      };
+      }
 
-      const response = await appointmentsAPI.create(appointmentData);
-      setSuccessData(response.data);
-      setSuccess(true);
-    } catch (err) {
-      console.error("Error creating appointment:", err);
-      setError("Failed to create appointment. Please try again.");
+      const response = await appointmentsAPI.create(appointmentData)
+      setSuccessData(response.data)
+      setSuccess(true)
+    } catch (error) {
+      console.error("Error creating appointment:", error)
+      setError("Failed to create appointment. Please try again.")
     } finally {
-      setSubmitting(false);
+      setSubmitting(false)
     }
-  };
+  }
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    window.print()
+  }
 
   const handleBackToForm = () => {
-    setSuccess(false);
-    setSuccessData(null);
-    reset();
-  };
+    setSuccess(false)
+    setSuccessData(null)
+    reset()
+  }
 
   if (loading) {
     return (
@@ -335,7 +348,7 @@ const VisitorForm = () => {
           )}
         </div>
       </div>
-    );
+    )
   }
 
   if (success && successData) {
@@ -345,23 +358,11 @@ const VisitorForm = () => {
           <div className="bg-white rounded-lg shadow-lg p-8">
             <div className="text-center mb-8">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg
-                  className="w-8 h-8 text-green-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
+                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Appointment Created Successfully!
-              </h1>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Appointment Created Successfully!</h1>
               <p className="text-gray-600">Your visitor appointment has been scheduled.</p>
             </div>
 
@@ -402,15 +403,11 @@ const VisitorForm = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Appointment Date</p>
-                  <p className="font-semibold">
-                    {new Date(successData.appointmentDate).toLocaleString()}
-                  </p>
+                  <p className="font-semibold">{new Date(successData.appointmentDate).toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Valid Till</p>
-                  <p className="font-semibold">
-                    {new Date(successData.appointmentValidTill).toLocaleString()}
-                  </p>
+                  <p className="font-semibold">{new Date(successData.appointmentValidTill).toLocaleString()}</p>
                 </div>
                 <div className="md:col-span-2">
                   <p className="text-sm text-gray-600">Purpose of Visit</p>
@@ -422,10 +419,7 @@ const VisitorForm = () => {
             <div className="bg-gray-50 rounded-lg p-6 mb-8">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Visitors</h2>
               {successData.visitors?.map((visitor, index) => (
-                <div
-                  key={index}
-                  className="border-b border-gray-200 pb-4 mb-4 last:border-b-0 last:mb-0"
-                >
+                <div key={index} className="border-b border-gray-200 pb-4 mb-4 last:border-b-0 last:mb-0">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-gray-600">Full Name</p>
@@ -452,10 +446,7 @@ const VisitorForm = () => {
                         <p className="text-sm text-gray-600">Belongings</p>
                         <div className="flex flex-wrap gap-2 mt-1">
                           {visitor.belongings.map((belonging, bIndex) => (
-                            <span
-                              key={bIndex}
-                              className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm"
-                            >
+                            <span key={bIndex} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
                               {belonging.assetName}
                             </span>
                           ))}
@@ -486,24 +477,16 @@ const VisitorForm = () => {
           </div>
         </div>
       </div>
-    );
+    )
   }
-
-  // ✅ use stable options if available (prevents flicker)
-  const personOptions =
-    (stableFilteredUsers.length ? stableFilteredUsers : filteredUsers) || [];
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Visitor Registration Form
-            </h1>
-            <p className="text-gray-600">
-              Please fill out the form below to schedule your visit
-            </p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Visitor Registration Form</h1>
+            <p className="text-gray-600">Please fill out the form below to schedule your visit</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
@@ -515,11 +498,7 @@ const VisitorForm = () => {
               autoComplete="off"
             />
 
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                {error}
-              </div>
-            )}
+            {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">{error}</div>}
 
             <div className="bg-gray-50 rounded-lg p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
@@ -529,96 +508,56 @@ const VisitorForm = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Plant *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Plant *</label>
                   <select
                     {...register("plant", { required: "Plant is required" })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Plant</option>
                     {plants.map((plant) => (
-                      <option
-                        key={plant._id || plant.id || plant.plantName}
-                        value={plant._id || plant.id}
-                      >
+                      <option key={plant._id || plant.id || plant.plantName} value={plant._id || plant.id}>
                         {(plant.plantName || plant.name || "").toUpperCase()}
                       </option>
                     ))}
                   </select>
-                  {errors.plant && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.plant.message}
-                    </p>
-                  )}
+                  {errors.plant && <p className="text-red-500 text-sm mt-1">{errors.plant.message}</p>}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Department *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Department *</label>
                   <select
-                    {...register("department", {
-                      required: "Department is required",
-                    })}
+                    {...register("department", { required: "Department is required" })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Department</option>
                     {departments.map((dept) => (
-                      <option
-                        key={dept._id || dept.id || dept.departmentName}
-                        value={dept._id || dept.id}
-                      >
+                      <option key={dept._id || dept.id || dept.departmentName} value={dept._id || dept.id}>
                         {(dept.departmentName || dept.name || "").toUpperCase()}
                       </option>
                     ))}
                   </select>
-                  {errors.department && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.department.message}
-                    </p>
-                  )}
+                  {errors.department && <p className="text-red-500 text-sm mt-1">{errors.department.message}</p>}
                 </div>
 
-                {/* ✅ UPDATED: stable dropdown */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Person to Visit *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Person to Visit *</label>
                   <select
-                    {...register("personToVisit", {
-                      required: "Person to visit is required",
-                    })}
-                    onFocus={() => setIsPersonSelectOpen(true)}
-                    onBlur={() => setIsPersonSelectOpen(false)}
-                    disabled={!watchedDepartment}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                    {...register("personToVisit")}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">
-                      {watchedDepartment ? "Select Person" : "Select Department first"}
-                    </option>
-
-                    {personOptions.map((user) => (
+                    <option value="">Select Person</option>
+                    {filteredUsers.map((user) => (
                       <option key={user._id} value={user._id}>
                         {(user.fullname || user.name || "").toUpperCase()}
                       </option>
                     ))}
                   </select>
-                  {errors.personToVisit && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.personToVisit.message}
-                    </p>
-                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Area to Visit *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Area to Visit *</label>
                   <select
-                    {...register("areaToVisit", {
-                      required: "Area to visit is required",
-                    })}
+                    {...register("areaToVisit")}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Area</option>
@@ -628,57 +567,30 @@ const VisitorForm = () => {
                       </option>
                     ))}
                   </select>
-                  {errors.areaToVisit && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.areaToVisit.message}
-                    </p>
-                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Appointment Date *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Appointment Date *</label>
                   <input
-                    {...register("appointmentDate", {
-                      required: "Appointment date is required",
-                    })}
+                    {...register("appointmentDate")}
                     type="datetime-local"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  {errors.appointmentDate && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.appointmentDate.message}
-                    </p>
-                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Valid Till *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Valid Till *</label>
                   <input
-                    {...register("appointmentValidTill", {
-                      required: "Valid till date is required",
-                    })}
+                    {...register("appointmentValidTill")}
                     type="datetime-local"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  {errors.appointmentValidTill && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.appointmentValidTill.message}
-                    </p>
-                  )}
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Purpose of Visit *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Purpose of Visit *</label>
                   <select
-                    {...register("purposeOfVisit", {
-                      required: "Purpose of visit is required",
-                    })}
+                    {...register("purposeOfVisit")}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Purpose</option>
@@ -688,11 +600,6 @@ const VisitorForm = () => {
                     <option value="Training">TRAINING</option>
                     <option value="Others">OTHERS</option>
                   </select>
-                  {errors.purposeOfVisit && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.purposeOfVisit.message}
-                    </p>
-                  )}
                 </div>
               </div>
             </div>
@@ -754,8 +661,8 @@ const VisitorForm = () => {
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
 const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRemove }) => {
   const {
@@ -765,7 +672,7 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
   } = useFieldArray({
     control,
     name: `visitors.${visitorIndex}.belongings`,
-  });
+  })
 
   return (
     <div className="bg-white rounded-lg p-4 sm:p-6 mb-4 border border-gray-200">
@@ -788,9 +695,7 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div className="sm:col-span-2 sm:grid sm:grid-cols-2 sm:gap-4 space-y-4 sm:space-y-0">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              WhatsApp Number *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">WhatsApp Number *</label>
             <input
               {...register(`visitors.${visitorIndex}.mobile`)}
               type="tel"
@@ -800,9 +705,7 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Full Name *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
             <input
               {...register(`visitors.${visitorIndex}.fullname`)}
               type="text"
@@ -814,9 +717,7 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
 
         <div className="sm:col-span-2 sm:grid sm:grid-cols-2 sm:gap-4 space-y-4 sm:space-y-0">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Company
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Company</label>
             <input
               {...register(`visitors.${visitorIndex}.company`)}
               type="text"
@@ -826,9 +727,7 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
             <input
               {...register(`visitors.${visitorIndex}.email`)}
               type="email"
@@ -845,7 +744,6 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
             <Package className="w-4 h-4 mr-2" />
             Belongings
           </h4>
-
           {belongingFields.length === 0 ? (
             <button
               type="button"
@@ -875,19 +773,17 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
           </div>
         ) : (
           <div className="space-y-2">
-            {belongingFields.map((belonging) => (
+            {belongingFields.map((belonging, belongingIndex) => (
               <div key={belonging.id} className="flex items-center gap-2">
                 <input
-                  {...register(
-                    `visitors.${visitorIndex}.belongings.${belongingFields.indexOf(belonging)}.assetName`
-                  )}
+                  {...register(`visitors.${visitorIndex}.belongings.${belongingIndex}.assetName`)}
                   type="text"
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                   placeholder="Enter asset name"
                 />
                 <button
                   type="button"
-                  onClick={() => removeBelonging(belongingFields.indexOf(belonging))}
+                  onClick={() => removeBelonging(belongingIndex)}
                   className="text-red-600 hover:text-red-800 transition-colors p-1"
                 >
                   <Minus className="w-4 h-4" />
@@ -898,7 +794,7 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
         )}
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default VisitorForm;
+export default VisitorForm
