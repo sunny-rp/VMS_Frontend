@@ -462,7 +462,7 @@ export const plantsAPI = {
   },
   getAll: async (companyId = null) => {
     if (companyId) {
-      return await apiClient.request(`/visitor-form/plants/fetch-plant?companyId=${companyId}`)
+      return await apiClient.request(`/visitor-form/plants/fetch-plants?companyId=${companyId}`)
     }
     return await apiClient.request("/user/plants/fetch-plants")
   },
