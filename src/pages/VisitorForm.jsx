@@ -190,6 +190,9 @@ const VisitorForm = () => {
           toast.error("No form data available. Please contact your administrator.")
         } else {
           console.log("[v0] Form data loaded successfully")
+          if (companiesData.length === 0) {
+            toast.warning("Company data could not be loaded. You can still submit the form.")
+          }
         }
       } catch (error) {
         console.error("[v0] Error loading form data:", error)
@@ -562,7 +565,7 @@ const VisitorForm = () => {
                   >
                     <option value="">Select Area</option>
                     {areas.map((area) => (
-                      <option key={area._id || area.id} value={area.areaName}>
+                      <option key={area._id || area.id} value={area._id || area.id}>
                         {(area.areaName || "").toUpperCase()}
                       </option>
                     ))}
