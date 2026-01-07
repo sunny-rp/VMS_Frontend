@@ -556,7 +556,7 @@ export const areasAPI = {
 
 export const appointmentsAPI = {
   create: async (appointmentData) => {
-    return await apiClient.request("/user/appointments/create-appointment", {
+    return await apiClient.request("/user/appointments/create-visitor-appointment", {
       method: "POST",
       body: JSON.stringify(appointmentData),
     })
