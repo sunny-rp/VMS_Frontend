@@ -175,6 +175,9 @@ const VisitorForm = () => {
           toast.error("No form data available. Please contact your administrator.")
         } else {
           console.log("[v0] Form data loaded successfully")
+          if (companiesData.length === 0) {
+            toast.warning("Company data could not be loaded. You can still submit the form.")
+          }
         }
       } catch (error) {
         console.error("[v0] Error loading form data:", error)
@@ -189,12 +192,26 @@ const VisitorForm = () => {
   }, [plantIdFromUrl, companyIdFromUrl, setValue])
 
   useEffect(() => {
+    console.log("[v0] Department changed:", watchedDepartment)
+    console.log("[v0] Total users available:", users.length)
+
     if (watchedDepartment && users.length > 0) {
-      const filtered = users.filter(
-        (user) => user.department === watchedDepartment || user.departmentId === watchedDepartment,
-      )
+      const filtered = users.filter((user) => {
+        // Check multiple possible field names for department matching
+        const userDepartment = user.department || user.departmentId || user.dept || user.deptId
+        const matches =
+          userDepartment === watchedDepartment ||
+          user.department?._id === watchedDepartment ||
+          user.departmentId === watchedDepartment
+
+        console.log("[v0] User:", user.fullname || user.name, "Department:", userDepartment, "Matches:", matches)
+        return matches
+      })
+
+      console.log("[v0] Filtered users count:", filtered.length)
       setFilteredUsers(filtered)
     } else {
+      console.log("[v0] No department selected or no users, showing all users")
       setFilteredUsers(users)
     }
   }, [watchedDepartment, users])
