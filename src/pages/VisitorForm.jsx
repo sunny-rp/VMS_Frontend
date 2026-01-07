@@ -69,15 +69,25 @@ const VisitorForm = () => {
     const loadData = async () => {
       try {
         setLoading(true)
-        setError("") // Clear error at the start of loading
+        setError("")
         console.log("[v0] Loading form data with URL params:", { plantIdFromUrl, companyIdFromUrl })
 
-        const [plantsRes, departmentsRes, usersRes, companiesRes, areasRes] = await Promise.all([
-          plantsAPI.getAll(),
-          departmentsAPI.getAll(),
-          usersAPI.getAll(),
-          companiesAPI.getAll(),
-          areasAPI.getAll(),
+        const dataPromises = [
+          plantsAPI.getAll(companyIdFromUrl),
+          departmentsAPI.getAll(companyIdFromUrl),
+          usersAPI.getAll(companyIdFromUrl),
+          areasAPI.getAll(companyIdFromUrl),
+        ]
+
+        // Try to load companies but don't let it fail the entire form
+        const companiesPromise = companiesAPI.getAll().catch((error) => {
+          console.warn("[v0] Companies API failed, continuing without company data:", error)
+          return { data: { data: [] } }
+        })
+
+        const [plantsRes, departmentsRes, usersRes, areasRes, companiesRes] = await Promise.all([
+          ...dataPromises,
+          companiesPromise,
         ])
 
         console.log("[v0] Raw API responses:", { plantsRes, departmentsRes, usersRes, companiesRes, areasRes })
@@ -159,13 +169,15 @@ const VisitorForm = () => {
           plantsData.length === 0 &&
           departmentsData.length === 0 &&
           usersData.length === 0 &&
-          companiesData.length === 0 &&
           areasData.length === 0
         ) {
           console.warn("[v0] No data loaded from any API")
           toast.error("No form data available. Please contact your administrator.")
         } else {
           console.log("[v0] Form data loaded successfully")
+          if (companiesData.length === 0) {
+            toast.warning("Company data could not be loaded. You can still submit the form.")
+          }
         }
       } catch (error) {
         console.error("[v0] Error loading form data:", error)

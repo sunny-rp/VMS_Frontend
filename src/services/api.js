@@ -263,7 +263,11 @@ export const visitorsAPI = {
 }
 
 export const usersAPI = {
-  getAll: async (filters = {}) => {
+  getAll: async (companyId = null, filters = {}) => {
+    if (companyId) {
+      return await apiClient.request(`/visitor-form/users?companyId=${companyId}`)
+    }
+
     const queryParams = new URLSearchParams()
     if (filters.search) queryParams.append("search", filters.search)
     if (filters.status) queryParams.append("status", filters.status)
@@ -456,7 +460,10 @@ export const plantsAPI = {
       body: JSON.stringify(plantData),
     })
   },
-  getAll: async () => {
+  getAll: async (companyId = null) => {
+    if (companyId) {
+      return await apiClient.request(`/visitor-form/plants?companyId=${companyId}`)
+    }
     return await apiClient.request("/user/plants/fetch-plants")
   },
   update: async (plantId, plantData) => {
@@ -479,7 +486,10 @@ export const departmentsAPI = {
       body: JSON.stringify(departmentData),
     })
   },
-  getAll: async () => {
+  getAll: async (companyId = null) => {
+    if (companyId) {
+      return await apiClient.request(`/visitor-form/departments?companyId=${companyId}`)
+    }
     return await apiClient.request("/user/departments/fetch-departments")
   },
   update: async (departmentId, departmentData) => {
@@ -525,7 +535,10 @@ export const areasAPI = {
       body: JSON.stringify(areaData),
     })
   },
-  getAll: async () => {
+  getAll: async (companyId = null) => {
+    if (companyId) {
+      return await apiClient.request(`/visitor-form/areas?companyId=${companyId}`)
+    }
     return await apiClient.request("/user/areas/fetch-areas")
   },
   update: async (areaId, areaData) => {
