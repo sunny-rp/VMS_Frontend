@@ -265,7 +265,7 @@ export const visitorsAPI = {
 export const usersAPI = {
   getAll: async (companyId = null, filters = {}) => {
     if (companyId) {
-      return await apiClient.request(`/visitor-form/fetch-users?companyId=${companyId}`)
+      return await apiClient.request(`/visitor-form/users?companyId=${companyId}`)
     }
 
     const queryParams = new URLSearchParams()
@@ -462,7 +462,7 @@ export const plantsAPI = {
   },
   getAll: async (companyId = null) => {
     if (companyId) {
-      return await apiClient.request(`/visitor-form/plants/fetch-plants?companyId=${companyId}`)
+      return await apiClient.request(`/visitor-form/plants?companyId=${companyId}`)
     }
     return await apiClient.request("/user/plants/fetch-plants")
   },
@@ -488,7 +488,7 @@ export const departmentsAPI = {
   },
   getAll: async (companyId = null) => {
     if (companyId) {
-      return await apiClient.request(`/visitor-form/departments/fetch-departments?companyId=${companyId}`)
+      return await apiClient.request(`/visitor-form/departments?companyId=${companyId}`)
     }
     return await apiClient.request("/user/departments/fetch-departments")
   },
@@ -537,7 +537,7 @@ export const areasAPI = {
   },
   getAll: async (companyId = null) => {
     if (companyId) {
-      return await apiClient.request(`/visitor-form/areas/fetch-areas?companyId=${companyId}`)
+      return await apiClient.request(`/visitor-form/areas?companyId=${companyId}`)
     }
     return await apiClient.request("/user/areas/fetch-areas")
   },
@@ -595,20 +595,14 @@ export const appointmentsAPI = {
     })
   },
   checkIn: async (appointmentId, qrData = null) => {
-    const requestData = { appointmentId }
-    if (qrData) {
-      requestData.qrData = qrData
-    }
+    const requestData = qrData ? { qrData } : {}
     return await apiClient.request(`/visitor-form/appointments/checkin-visitors/${appointmentId}`, {
       method: "POST",
       body: JSON.stringify(requestData),
     })
   },
   checkOut: async (appointmentId, qrData = null) => {
-    const requestData = { appointmentId }
-    if (qrData) {
-      requestData.qrData = qrData
-    }
+    const requestData = qrData ? { qrData } : {}
     return await apiClient.request(`/user/appointments/checkout-visitors/${appointmentId}`, {
       method: "POST",
       body: JSON.stringify(requestData),

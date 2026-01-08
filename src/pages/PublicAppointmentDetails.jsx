@@ -48,7 +48,7 @@ const PublicAppointmentDetails = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ appointmentId }),
+        body: JSON.stringify({}),
       })
 
       if (!response.ok) {
@@ -78,7 +78,7 @@ const PublicAppointmentDetails = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ appointmentId }),
+        body: JSON.stringify({}),
       })
 
       if (!response.ok) {
