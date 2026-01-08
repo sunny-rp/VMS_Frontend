@@ -599,7 +599,7 @@ export const appointmentsAPI = {
     if (qrData) {
       requestData.qrData = qrData
     }
-    return await apiClient.request(`/user/appointments/checkin-visitors/${appointmentId}`, {
+    return await apiClient.request(`/visitor-form/appointments/checkin-visitors/${appointmentId}`, {
       method: "POST",
       body: JSON.stringify(requestData),
     })
