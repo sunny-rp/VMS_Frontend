@@ -2,19 +2,14 @@
 
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import {
-  Users,
-  UserCheck,
-  UserX,
-  RotateCcw,
-  Pause,
-  Plus,
-} from "lucide-react"
+import { Users, UserCheck, UserX, RotateCcw, Pause, Plus } from "lucide-react"
 import { dashboardAPI } from "../services/api"
 import { toast } from "sonner"
+import { useAuth } from "../contexts/AuthContext" // Import useAuth hook from AuthContext
 
 const Dashboard = () => {
   const navigate = useNavigate()
+  const { user } = useAuth() // Use the imported useAuth hook
 
   const [stats, setStats] = useState({
     oneDayPass: 0,
@@ -28,6 +23,14 @@ const Dashboard = () => {
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
   const [activitiesLoading, setActivitiesLoading] = useState(true)
+
+  const getCurrentDate = () => {
+    const now = new Date()
+    const month = String(now.getMonth() + 1).padStart(2, "0")
+    const day = String(now.getDate()).padStart(2, "0")
+    const year = now.getFullYear()
+    return `${month}/${day}/${year}`
+  }
 
   const capitalizeFirstLetter = (str) => {
     if (!str) return ""
@@ -43,63 +46,48 @@ const Dashboard = () => {
     const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
 
     if (diffInMinutes < 1) return "Just now"
-    if (diffInMinutes < 60)
-      return `${diffInMinutes} minute${diffInMinutes > 1 ? "s" : ""} ago`
-    if (diffInHours < 24)
-      return `${diffInHours} hour${diffInHours > 1 ? "s" : ""} ago`
+    if (diffInMinutes < 60) return `${diffInMinutes} minute${diffInMinutes > 1 ? "s" : ""} ago`
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? "s" : ""} ago`
     return `${diffInDays} day${diffInDays > 1 ? "s" : ""} ago`
   }
 
-  /* =========================
-     FETCH DASHBOARD COUNTS
-  ========================= */
   useEffect(() => {
-   const fetchDashboardData = async () => {
-  try {
-    setLoading(true)
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true)
 
-    const response = await dashboardAPI.getCountings()
+        const response = await dashboardAPI.getCountings()
 
-    // ✅ FIXED RESPONSE HANDLING
-    const apiData = response?.data || response
+        const apiData = response?.data || response
 
-    setStats({
-      oneDayPass: apiData?.totalPassIssued?.length || 0,
+        setStats({
+          oneDayPass: apiData?.totalPassIssued?.length || 0,
 
-      visitorsAppointment:
-        apiData?.totalAppointments?.[0]?.totalAppointments || 0,
+          visitorsAppointment: apiData?.totalAppointments?.[0]?.totalAppointments || 0,
 
-      pendingApprovals:
-        apiData?.pendingAppointments?.length || 0,
+          pendingApprovals: apiData?.pendingAppointments?.length || 0,
 
-      checkedInCount:
-        apiData?.totalCheckedInVisitors?.[0]?.checkedInVisitors || 0,
+          checkedInCount: apiData?.totalCheckedInVisitors?.[0]?.checkedInVisitors || 0,
 
-      checkedOutCount:
-        apiData?.totalCheckedOutVisitors?.[0]?.checkedOutVisitors || 0,
+          checkedOutCount: apiData?.totalCheckedOutVisitors?.[0]?.checkedOutVisitors || 0,
 
-      visitorsInside:
-        apiData?.totalVisitorsInsideCompany?.[0]?.visitorsInsideCompany || 0,
-    })
-  } catch (error) {
-    console.error("Dashboard count error:", error)
-    toast.error("Failed to load dashboard data")
-  } finally {
-    setLoading(false)
-  }
-}
+          visitorsInside: apiData?.totalVisitorsInsideCompany?.[0]?.visitorsInsideCompany || 0,
+        })
+      } catch (error) {
+        console.error("Dashboard count error:", error)
+        toast.error("Failed to load dashboard data")
+      } finally {
+        setLoading(false)
+      }
+    }
 
-
-    /* =========================
-       FETCH RECENT ACTIVITIES
-    ========================= */
     const fetchActivities = async () => {
       try {
         setActivitiesLoading(true)
         const response = await dashboardAPI.getActivities()
         const data = response?.data
 
-        let processedActivities = []
+        const processedActivities = []
 
         if (data?.checkedinActivities?.length) {
           const checkins = data.checkedinActivities.flatMap((activity) =>
@@ -110,7 +98,7 @@ const Dashboard = () => {
               type: "checkin",
               createdAt: activity.updatedAt,
               timeAgo: formatTimeAgo(activity.updatedAt),
-            }))
+            })),
           )
           processedActivities.push(...checkins)
         }
@@ -124,14 +112,12 @@ const Dashboard = () => {
               type: "checkout",
               createdAt: activity.updatedAt,
               timeAgo: formatTimeAgo(activity.updatedAt),
-            }))
+            })),
           )
           processedActivities.push(...checkouts)
         }
 
-        processedActivities.sort(
-          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-        )
+        processedActivities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 
         setActivities(processedActivities.slice(0, 10))
       } catch (error) {
@@ -215,9 +201,14 @@ const Dashboard = () => {
     <div className="space-y-6">
       {/* HEADER */}
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">VMS Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold text-gray-900">VMS Dashboard</h1>
+        </div>
         <div className="text-sm text-gray-600">
-          View On : <span className="font-medium">05/09/2025 - 05/09/2025</span>
+          View On :{" "}
+          <span className="font-medium">
+            {getCurrentDate()} - {getCurrentDate()}
+          </span>
         </div>
       </div>
 
@@ -226,24 +217,16 @@ const Dashboard = () => {
         {statCards.map((stat) => (
           <div
             key={stat.name}
-            className={`p-4 rounded-lg ${stat.bgColor} ${
-              stat.isAction ? "cursor-pointer hover:shadow-md" : ""
-            }`}
+            className={`p-4 rounded-lg ${stat.bgColor} ${stat.isAction ? "cursor-pointer hover:shadow-md" : ""}`}
             onClick={stat.isAction ? handleCreateAppointment : undefined}
           >
             <div className="flex items-center">
-              <div
-                className={`w-10 h-10 ${stat.color} rounded-lg flex items-center justify-center`}
-              >
+              <div className={`w-10 h-10 ${stat.color} rounded-lg flex items-center justify-center`}>
                 <stat.icon className="text-white w-5 h-5" />
               </div>
               <div className="ml-3">
-                <p className="text-2xl font-bold">
-                  {stat.isAction ? "" : loading ? "..." : stat.value}
-                </p>
-                <p className={`text-sm font-medium ${stat.textColor}`}>
-                  {stat.name}
-                </p>
+                <p className="text-2xl font-bold">{stat.isAction ? "" : loading ? "..." : stat.value}</p>
+                <p className={`text-sm font-medium ${stat.textColor}`}>{stat.name}</p>
               </div>
             </div>
           </div>
@@ -258,16 +241,11 @@ const Dashboard = () => {
           <p className="text-center text-gray-500">Loading activities...</p>
         ) : activities.length ? (
           activities.map((activity) => (
-            <div
-              key={activity.id}
-              className="flex justify-between py-3 border-b"
-            >
+            <div key={activity.id} className="flex justify-between py-3 border-b">
               <div className="flex items-center gap-3">
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    activity.type === "checkin"
-                      ? "bg-green-100"
-                      : "bg-red-100"
+                    activity.type === "checkin" ? "bg-green-100" : "bg-red-100"
                   }`}
                 >
                   {activity.type === "checkin" ? (
@@ -278,10 +256,7 @@ const Dashboard = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium">
-                    {activity.visitorName}{" "}
-                    {activity.type === "checkin"
-                      ? "checked in"
-                      : "checked out"}
+                    {activity.visitorName} {activity.type === "checkin" ? "checked in" : "checked out"}
                   </p>
                   <p className="text-xs text-gray-500">
                     {activity.company} • {activity.timeAgo}

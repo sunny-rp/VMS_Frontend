@@ -10,21 +10,16 @@ const DashboardLayout = () => {
   const location = useLocation()
 
   useEffect(() => {
-    console.log("[v0] Route changed to:", location.pathname)
-    console.log("[v0] Sidebar was open:", sidebarOpen)
     if (sidebarOpen) {
-      console.log("[v0] Closing sidebar due to route change")
       setSidebarOpen(false)
     }
-  }, [location.pathname, sidebarOpen])
+  }, [location.pathname])
 
   const handleSidebarClose = () => {
-    console.log("[v0] Manually closing sidebar")
     setSidebarOpen(false)
   }
 
   const handleSidebarOpen = () => {
-    console.log("[v0] Opening sidebar")
     setSidebarOpen(true)
   }
 
@@ -45,11 +40,6 @@ const DashboardLayout = () => {
           </div>
         </main>
       </div>
-
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-gray-600 bg-opacity-75 lg:hidden" onClick={handleSidebarClose} />
-      )}
     </div>
   )
 }

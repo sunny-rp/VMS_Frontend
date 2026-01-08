@@ -3,7 +3,7 @@
 import { NavLink, useLocation } from "react-router-dom"
 import { useAuth } from "../../contexts/AuthContext"
 import { useState, useEffect, useRef } from "react"
-import { BarChart3, Settings, Users, UsersRound, LinkIcon, CreditCard, FileText } from "lucide-react"
+import { BarChart3, Settings, Users, UsersRound, CreditCard, FileText } from "lucide-react"
 
 const Sidebar = ({ isOpen, onClose }) => {
   const { user, hasRole } = useAuth()
@@ -296,8 +296,20 @@ const Sidebar = ({ isOpen, onClose }) => {
       </div>
 
       {/* Mobile drawer */}
-      <div className={`lg:hidden fixed inset-0 z-50 ${isOpen ? "block" : "hidden"}`}>
-        <div className="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 px-6 pb-4 h-full flex flex-col">
+      {/* Mobile overlay backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-gray-900/80 backdrop-blur-sm lg:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Mobile sidebar drawer */}
+      <div
+        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-in-out ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
+      >
+        <div className="bg-white border-r border-gray-200 px-6 pb-4 h-full flex flex-col overflow-hidden">
           {/* Header */}
           <div className="flex h-16 shrink-0 items-center justify-between">
             <div className="flex items-center gap-3">
