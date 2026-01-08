@@ -73,7 +73,7 @@ const PublicAppointmentDetails = () => {
       setCheckingOut(true)
       console.log("[v0] Checking out appointment:", appointmentId)
       const API_BASE_URL = import.meta.env.VITE_PUBLIC_API_BASE_URL || "http://localhost:5000/api/v1"
-      const response = await fetch(`${API_BASE_URL}/user/appointments/checkout-visitors/${appointmentId}`, {
+      const response = await fetch(`${API_BASE_URL}/visitor-form/appointments/checkout-visitors/${appointmentId}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
