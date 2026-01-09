@@ -29,14 +29,14 @@ const Sidebar = ({ isOpen, onClose }) => {
       href: "/department",
       roles: ["admin", "super_admin"],
     },
-    { name: "Route", href: "/route", roles: ["admin", "super_admin"] },
+    // { name: "Route", href: "/route", roles: ["admin", "super_admin"] },
     { name: "Gate", href: "/gate", roles: ["admin", "super_admin"] },
-    { name: "Shift", href: "/shift", roles: ["admin", "super_admin"] },
-    {
-      name: "Terms & Conditions",
-      href: "/master/terms",
-      roles: ["admin", "super_admin"],
-    },
+    // { name: "Shift", href: "/shift", roles: ["admin", "super_admin"] },
+    // {
+    //   name: "Terms & Conditions",
+    //   href: "/master/terms",
+    //   roles: ["admin", "super_admin"],
+    // },
   ]
 
   const sidebarSections = [
@@ -83,16 +83,16 @@ const Sidebar = ({ isOpen, onClose }) => {
           roles: ["admin", "super_admin"],
         },
         { name: "Role", href: "/role", roles: ["admin", "super_admin"] },
-        {
-          name: "Role Wise Screen Mapping",
-          href: "/role-wise-screen-mapping",
-          roles: ["admin", "super_admin"],
-        },
-        {
-          name: "User Wise Screen Mapping",
-          href: "/user-wise-screen-mapping",
-          roles: ["admin", "super_admin"],
-        },
+        // {
+        //   name: "Role Wise Screen Mapping",
+        //   href: "/role-wise-screen-mapping",
+        //   roles: ["admin", "super_admin"],
+        // },
+        // {
+        //   name: "User Wise Screen Mapping",
+        //   href: "/user-wise-screen-mapping",
+        //   roles: ["admin", "super_admin"],
+        // },
       ],
       roles: ["admin", "super_admin"],
     },
@@ -137,29 +137,29 @@ const Sidebar = ({ isOpen, onClose }) => {
       ],
       roles: ["admin", "super_admin", "reception"],
     },
-    {
-      id: "documents",
-      name: "REPORTS",
-      icon: FileText,
-      items: [
-        {
-          name: "Check In Check Out Report",
-          href: "/checkin-checkout-report",
-          roles: ["admin", "super_admin"],
-        },
-        {
-          name: "Feedback Report",
-          href: "/feedback-report",
-          roles: ["admin", "super_admin"],
-        },
-        {
-          name: "Vehicle Invoice Report",
-          href: "/vehicle-invoice-report",
-          roles: ["admin", "super_admin"],
-        },
-      ],
-      roles: ["admin", "super_admin"],
-    },
+    // {
+    //   id: "documents",
+    //   name: "REPORTS",
+    //   icon: FileText,
+    //   items: [
+    //     {
+    //       name: "Check In Check Out Report",
+    //       href: "/checkin-checkout-report",
+    //       roles: ["admin", "super_admin"],
+    //     },
+    //     {
+    //       name: "Feedback Report",
+    //       href: "/feedback-report",
+    //       roles: ["admin", "super_admin"],
+    //     },
+    //     {
+    //       name: "Vehicle Invoice Report",
+    //       href: "/vehicle-invoice-report",
+    //       roles: ["admin", "super_admin"],
+    //     },
+    //   ],
+    //   roles: ["admin", "super_admin"],
+    // },
   ]
 
   // ---------- role-based filtering with safe fallback ----------
