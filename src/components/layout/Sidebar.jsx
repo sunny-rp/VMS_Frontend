@@ -170,6 +170,11 @@ const Sidebar = ({ isOpen, onClose }) => {
   // ---------- UI handlers ----------
   const handleSectionClick = (sectionId) => setExpandedSection((prev) => (prev === sectionId ? null : sectionId))
 
+  const handleLinkClick = () => {
+    setExpandedSection(null)
+    localStorage.removeItem("sidebar.expandedSection")
+  }
+
   // Validate expandedSection whenever visibility/roles change
   useEffect(() => {
     if (expandedSection && !visibleSections.some((s) => s.id === expandedSection)) {
@@ -178,29 +183,6 @@ const Sidebar = ({ isOpen, onClose }) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(visibleSections)])
-
-  // Auto-open section for current route + restore from localStorage safely
-  useEffect(() => {
-    const stored = localStorage.getItem("sidebar.expandedSection")
-    const current = visibleSections.find((sec) => (sec.items || []).some((it) => it.href === location.pathname))
-
-    if (current && current.id !== expandedSection) {
-      setExpandedSection(current.id)
-      localStorage.setItem("sidebar.expandedSection", current.id)
-    } else if (!expandedSection) {
-      if (stored && visibleSections.some((s) => s.id === stored)) {
-        setExpandedSection(stored)
-      } else {
-        localStorage.removeItem("sidebar.expandedSection")
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname, JSON.stringify(visibleSections)])
-
-  // Persist expanded section
-  useEffect(() => {
-    if (expandedSection) localStorage.setItem("sidebar.expandedSection", expandedSection)
-  }, [expandedSection])
 
   // Collapse when clicking outside
   useEffect(() => {
@@ -279,6 +261,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                       <li key={item.name}>
                         <NavLink
                           to={item.href}
+                          onClick={handleLinkClick}
                           className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors ${
                             isActive ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:text-blue-600 hover:bg-gray-50"
                           }`}
