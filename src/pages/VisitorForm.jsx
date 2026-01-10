@@ -270,6 +270,10 @@ const VisitorForm = () => {
         setError(`Visitor ${i + 1}: Invalid email format`)
         return
       }
+      if (!visitor.company?.trim()) {
+        setError(`Visitor ${i + 1}: Company is required`)
+        return
+      }
     }
 
     const appointmentDate = new Date(data.appointmentDate)
@@ -607,13 +611,18 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
 
         <div className="sm:col-span-2 sm:grid sm:grid-cols-2 sm:gap-4 space-y-4 sm:space-y-0">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Company</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Company *</label>
             <input
-              {...register(`visitors.${visitorIndex}.company`)}
+              {...register(`visitors.${visitorIndex}.company`, {
+                required: "Company is required",
+              })}
               type="text"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
               placeholder="Enter company name"
             />
+            {errors?.visitors?.[visitorIndex]?.company && (
+              <p className="text-red-500 text-xs mt-1">{errors.visitors[visitorIndex].company.message}</p>
+            )}
           </div>
 
           <div>
