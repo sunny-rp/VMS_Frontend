@@ -1,13 +1,13 @@
-"use client";
+"use client"
 
-import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import { Navigate, useLocation } from "react-router-dom"
+import { useAuth } from "../contexts/AuthContext"
 
 const ProtectedRoute = ({ children, roles = [] }) => {
-  const { isAuthenticated, hasRole, isLoading } = useAuth();
-  const location = useLocation();
+  const { isAuthenticated, hasRole, isLoading } = useAuth()
+  const location = useLocation()
 
-  // Wait while cookie-based auth rehydrates
+  // 🔒 IMPORTANT: Wait for auth hydration (cookies / refresh)
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -16,13 +16,15 @@ const ProtectedRoute = ({ children, roles = [] }) => {
           <p className="text-sm text-gray-600">Loading...</p>
         </div>
       </div>
-    );
+    )
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
+  // 🔒 NOT authenticated → redirect to login
+  if (!isAuthenticated && !isLoading) {
+    return <Navigate to="/login" replace state={{ from: location }} />
   }
 
+  // 🔒 Authenticated but role not allowed
   if (roles.length > 0 && !hasRole(roles)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -35,10 +37,11 @@ const ProtectedRoute = ({ children, roles = [] }) => {
           </p>
         </div>
       </div>
-    );
+    )
   }
 
-  return children;
-};
+  // ✅ Authorized
+  return children
+}
 
-export default ProtectedRoute;
+export default ProtectedRoute

@@ -3,19 +3,29 @@
 import { useState } from "react"
 import { useAuth } from "../contexts/AuthContext"
 import { Eye, EyeOff, LogIn } from "lucide-react"
-import { useLocation, useNavigate } from "react-router-dom"
+import { useLocation, useNavigate, Navigate } from "react-router-dom"
 import { toast } from "sonner"
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({ emailOrPhone: "", password: "" })
   const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(false) // kept if you later store non-httpOnly hints
+  const [rememberMe, setRememberMe] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const { login } = useAuth()
+  // 🔴 IMPORTANT: get auth state
+  const { login, isAuthenticated, isLoading } = useAuth()
+
   const location = useLocation()
   const navigate = useNavigate()
+
+  // 🔒 BLOCK redirect until auth check finishes
+  if (isLoading) return null
+
+  // 🔒 If already logged in, go to dashboard
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />
+  }
 
   const isEmail = (input) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -23,7 +33,7 @@ const LoginPage = () => {
   }
 
   const isPhoneNumber = (input) => {
-    const phoneRegex = /^[+]?[\d\s\-$$$$]{10,}$/
+    const phoneRegex = /^[+]?[\d\s\-()]{10,}$/
     return phoneRegex.test(input.replace(/\s/g, ""))
   }
 
@@ -49,9 +59,7 @@ const LoginPage = () => {
     setLoading(true)
     setError("")
 
-    const loginData = {
-      password: formData.password,
-    }
+    const loginData = { password: formData.password }
 
     if (isEmail(formData.emailOrPhone)) {
       loginData.email = formData.emailOrPhone
@@ -113,12 +121,11 @@ const LoginPage = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="emailOrPhone" className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Email or Mobile No <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                id="emailOrPhone"
                 name="emailOrPhone"
                 value={formData.emailOrPhone}
                 onChange={handleInputChange}
@@ -129,13 +136,12 @@ const LoginPage = () => {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Password <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
-                  id="password"
                   name="password"
                   value={formData.password}
                   onChange={handleInputChange}
@@ -146,7 +152,7 @@ const LoginPage = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -156,24 +162,23 @@ const LoginPage = () => {
             <div className="flex items-center">
               <input
                 type="checkbox"
-                id="rememberMe"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                className="h-4 w-4 border-gray-300 rounded"
               />
-              <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
-                Remember me
-              </label>
+              <label className="ml-2 text-sm text-gray-700">Remember me</label>
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
             )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
+              className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2"
             >
               {loading ? (
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
@@ -185,8 +190,6 @@ const LoginPage = () => {
               )}
             </button>
           </form>
-
-        
         </div>
       </div>
     </div>
