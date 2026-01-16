@@ -12,12 +12,7 @@ const parseJsonSafe = async (response) => {
 }
 
 // Utility: read cookie (for NON-httpOnly cookies only)
-export const getCookie = (name) => {
-  const value = `; ${document.cookie}`
-  const parts = value.split(`; ${name}=`)
-  if (parts.length === 2) return parts.pop().split(";").shift()
-  return null
-}
+
 
 // NOTE:
 // accessToken/refreshToken cookies are httpOnly (backend-managed).
