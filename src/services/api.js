@@ -1,9 +1,6 @@
 // services/api.js
-// API Configuration
 const API_BASE_URL =
   import.meta.env.VITE_PUBLIC_API_BASE_URL || "http://localhost:5000/api/v1"
-
-// -------------------- Utilities --------------------
 
 // Utility: safe JSON parsing
 const parseJsonSafe = async (response) => {
@@ -14,7 +11,7 @@ const parseJsonSafe = async (response) => {
   }
 }
 
-// Utility: read cookie
+// Utility: read cookie (for NON-httpOnly cookies only)
 export const getCookie = (name) => {
   const value = `; ${document.cookie}`
   const parts = value.split(`; ${name}=`)
@@ -22,28 +19,22 @@ export const getCookie = (name) => {
   return null
 }
 
-// Utility: force clear auth cookies (frontend safety)
-export const clearAuthCookies = () => {
-  document.cookie = "accessToken=; Max-Age=0; path=/"
-  document.cookie = "refreshToken=; Max-Age=0; path=/"
-}
-
-// -------------------- HTTP Client --------------------
+// NOTE:
+// accessToken/refreshToken cookies are httpOnly (backend-managed).
+// Frontend JS CANNOT read or clear them using document.cookie.
+// Logout MUST be done via backend endpoint.
 
 export const apiClient = {
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`
 
-    // ✅ Cross-site cookie auth rules:
-    // - Always include credentials so browser sends/accepts cookies
-    // - Do NOT force JSON headers unless there is a body
-    //   (otherwise you trigger CORS preflight; logout cookie-clears often fail in prod)
     const method = (options.method || "GET").toUpperCase()
-    const hasBody = options.body != null
+    const hasBody = options.body !== undefined && options.body !== null
 
-    const headers = {
-      ...(hasBody ? { "Content-Type": "application/json" } : {}),
-      ...options.headers,
+    // ✅ Do NOT force Content-Type when no body (avoids CORS preflight on simple requests)
+    const headers = { ...(options.headers || {}) }
+    if (hasBody && !headers["Content-Type"]) {
+      headers["Content-Type"] = "application/json"
     }
 
     const config = {
@@ -55,28 +46,21 @@ export const apiClient = {
 
     const response = await fetch(url, config)
 
-    const isAuthEndpoint =
-      endpoint === "/user/login" ||
-      endpoint === "/user/refresh-token" ||
-      endpoint === "/user/logout" ||
-      endpoint === "/user/me"
+    const isAuthEndpoint = endpoint === "/user/login" || endpoint === "/user/logout"
 
     if (response.status === 401 && !isAuthEndpoint) {
-      const refreshed = await this.refreshToken()
-      if (refreshed) {
-        const retryResponse = await fetch(url, config)
-        if (retryResponse.ok) return await parseJsonSafe(retryResponse)
-      }
       const err = new Error("UNAUTHORIZED")
       err.status = 401
       throw err
     }
 
     if (!response.ok) {
+      if (endpoint === "/user/logout" && response.status === 404) {
+        return { ok: false, status: 404 }
+      }
+
       const errorData = await parseJsonSafe(response)
-      const err = new Error(
-        errorData.message || `HTTP error! status: ${response.status}`
-      )
+      const err = new Error(errorData.message || `HTTP error! status: ${response.status}`)
       err.status = response.status
       err.body = errorData
       throw err
@@ -84,28 +68,11 @@ export const apiClient = {
 
     return await parseJsonSafe(response)
   },
-
-  async refreshToken() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/user/refresh-token`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      })
-      return response.ok
-    } catch {
-      return false
-    }
-  },
 }
-
-
-// -------------------- Auth APIs --------------------
 
 export const authAPI = {
   login: async (credentials) => {
     const requestBody = { password: credentials.password }
-
     if (credentials.email) requestBody.email = credentials.email
     if (credentials.mobile) requestBody.mobile = credentials.mobile
 
@@ -118,9 +85,7 @@ export const authAPI = {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      const err = new Error(
-        errorData.message || `HTTP error! status: ${response.status}`
-      )
+      const err = new Error(errorData.message || `HTTP error! status: ${response.status}`)
       err.status = response.status
       throw err
     }
@@ -138,9 +103,7 @@ export const authAPI = {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      const err = new Error(
-        errorData.message || `HTTP error! status: ${response.status}`
-      )
+      const err = new Error(errorData.message || `HTTP error! status: ${response.status}`)
       err.status = response.status
       throw err
     }
@@ -149,11 +112,10 @@ export const authAPI = {
   },
 
   logout: async () => {
-    // ✅ SIMPLE request = no preflight = browser accepts Set-Cookie clears reliably
+    // ✅ Simple POST (no headers/body) => browser applies Set-Cookie clears reliably
     const res = await fetch(`${API_BASE_URL}/user/logout`, {
       method: "POST",
       credentials: "include",
-      // no headers, no body
     })
 
     if (!res.ok && res.status !== 404) {
@@ -163,34 +125,27 @@ export const authAPI = {
     }
   },
 
-  // 🔥 FIXED: HARD BLOCK AUTH IF COOKIE IS MISSING
- checkAuth: async () => {
+  // ✅ NO /me, NO /refresh-token
+  // Just hit any protected endpoint that exists in your backend.
+  // 200/204 => authenticated, 403 => authenticated but not allowed, 401 => not authenticated
+  checkAuth: async () => {
     try {
-      // ✅ SIMPLE GET (no headers) to avoid preflight
-      const res = await fetch(`${API_BASE_URL}/user/me`, {
+      const res = await fetch(`${API_BASE_URL}/user/dashboard/countings`, {
         method: "GET",
         credentials: "include",
-        cache: "no-store",
       })
 
-      const json = await parseJsonSafe(res)
-      if (!res.ok) return { success: false, data: null }
+      if (res.ok || res.status === 403) return { success: true }
+      if (res.status === 401) return { success: false }
 
-      // Supports:
-      // { success:true, data:{...user} }
-      // { success:true, data:{ user:{...user} } }
-      // { ...user }
-      const user = json?.data?.user ?? json?.data ?? json
-      if (!user) return { success: false, data: null }
-
-      return { success: true, data: user }
-    } catch (e) {
-      console.error("Auth check failed:", e)
-      return { success: false, data: null }
+      return { success: false }
+    } catch (error) {
+      console.error("Auth check failed:", error)
+      return { success: false }
     }
   },
-
 }
+
 
 // -------------------- ALL BUSINESS APIs BELOW (UNCHANGED) --------------------
 // visitorsAPI, usersAPI, rolesAPI, companiesAPI, countriesAPI, statesAPI,
