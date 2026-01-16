@@ -34,97 +34,71 @@ export const apiClient = {
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`
 
+    // ✅ Cross-site cookie auth rules:
+    // - Always include credentials so browser sends/accepts cookies
+    // - Do NOT force JSON headers unless there is a body
+    //   (otherwise you trigger CORS preflight; logout cookie-clears often fail in prod)
+    const method = (options.method || "GET").toUpperCase()
+    const hasBody = options.body != null
+
+    const headers = {
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
+      ...options.headers,
+    }
+
     const config = {
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
       ...options,
+      method,
+      headers,
       credentials: options.credentials ?? "include",
     }
 
-    const token = getCookie("accessToken")
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+    const response = await fetch(url, config)
+
+    const isAuthEndpoint =
+      endpoint === "/user/login" ||
+      endpoint === "/user/refresh-token" ||
+      endpoint === "/user/logout" ||
+      endpoint === "/user/me"
+
+    if (response.status === 401 && !isAuthEndpoint) {
+      const refreshed = await this.refreshToken()
+      if (refreshed) {
+        const retryResponse = await fetch(url, config)
+        if (retryResponse.ok) return await parseJsonSafe(retryResponse)
+      }
+      const err = new Error("UNAUTHORIZED")
+      err.status = 401
+      throw err
     }
 
-    try {
-      const response = await fetch(url, config)
-
-      const isAuthEndpoint =
-        endpoint === "/user/login" ||
-        endpoint === "/user/refresh-token" ||
-        endpoint === "/user/logout"
-
-      // 🔒 Centralized 401 handling (NO forced redirect)
-      if (response.status === 401 && !isAuthEndpoint) {
-        const refreshed = await this.refreshToken()
-        if (refreshed) {
-          config.headers.Authorization = `Bearer ${refreshed}`
-          const retryResponse = await fetch(url, config)
-          if (retryResponse.ok) {
-            return await parseJsonSafe(retryResponse)
-          }
-        }
-
-        const err = new Error("UNAUTHORIZED")
-        err.status = 401
-        throw err
-      }
-
-      if (!response.ok) {
-        // tolerate logout 404
-        if (endpoint === "/user/logout" && response.status === 404) {
-          return { ok: false, status: 404 }
-        }
-
-        const errorData = await parseJsonSafe(response)
-        const err = new Error(
-          errorData.message || `HTTP error! status: ${response.status}`
-        )
-        err.status = response.status
-        err.body = errorData
-        throw err
-      }
-
-      return await parseJsonSafe(response)
-    } catch (error) {
-      console.error("API request failed:", error)
-      throw error
+    if (!response.ok) {
+      const errorData = await parseJsonSafe(response)
+      const err = new Error(
+        errorData.message || `HTTP error! status: ${response.status}`
+      )
+      err.status = response.status
+      err.body = errorData
+      throw err
     }
-  },
 
-  async getValidToken() {
-    return getCookie("accessToken")
+    return await parseJsonSafe(response)
   },
 
   async refreshToken() {
     try {
-      const refreshToken = getCookie("refreshToken")
-      if (!refreshToken) return null
-
-      const response = await fetch(
-        `${API_BASE_URL}/user/refresh-token`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken }),
-        }
-      )
-
-      if (response.ok) {
-        const data = await parseJsonSafe(response)
-        return data.token || data.accessToken || null
-      }
-
-      return null
-    } catch (error) {
-      console.error("Token refresh failed:", error)
-      return null
+      const response = await fetch(`${API_BASE_URL}/user/refresh-token`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      })
+      return response.ok
+    } catch {
+      return false
     }
   },
 }
+
 
 // -------------------- Auth APIs --------------------
 
@@ -175,46 +149,46 @@ export const authAPI = {
   },
 
   logout: async () => {
-    try {
-      await apiClient.request("/user/logout", {
-        method: "POST",
-      })
-    } catch (error) {
-      console.warn(
-        "Logout API call failed (continuing local logout):",
-        error
-      )
-    } finally {
-      // 🔥 FRONTEND SAFETY NET
-      clearAuthCookies()
+    // ✅ SIMPLE request = no preflight = browser accepts Set-Cookie clears reliably
+    const res = await fetch(`${API_BASE_URL}/user/logout`, {
+      method: "POST",
+      credentials: "include",
+      // no headers, no body
+    })
+
+    if (!res.ok && res.status !== 404) {
+      const err = new Error(`Logout failed: ${res.status}`)
+      err.status = res.status
+      throw err
     }
   },
 
   // 🔥 FIXED: HARD BLOCK AUTH IF COOKIE IS MISSING
  checkAuth: async () => {
-  try {
-    const res = await fetch(
-      `${API_BASE_URL}/user/roles/fetch-roles`,
-      {
+    try {
+      // ✅ SIMPLE GET (no headers) to avoid preflight
+      const res = await fetch(`${API_BASE_URL}/user/me`, {
         method: "GET",
-        credentials: "include", // 🔥 sends httpOnly cookies
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    )
+        credentials: "include",
+        cache: "no-store",
+      })
 
-    if (res.ok) {
-      const data = await parseJsonSafe(res)
-      return { success: true, data }
+      const json = await parseJsonSafe(res)
+      if (!res.ok) return { success: false, data: null }
+
+      // Supports:
+      // { success:true, data:{...user} }
+      // { success:true, data:{ user:{...user} } }
+      // { ...user }
+      const user = json?.data?.user ?? json?.data ?? json
+      if (!user) return { success: false, data: null }
+
+      return { success: true, data: user }
+    } catch (e) {
+      console.error("Auth check failed:", e)
+      return { success: false, data: null }
     }
-
-    return { success: false, data: null }
-  } catch (error) {
-    console.error("Auth check failed:", error)
-    return { success: false, data: null }
-  }
-}
+  },
 
 }
 
