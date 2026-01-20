@@ -11,14 +11,89 @@ const parseJsonSafe = async (response) => {
   }
 }
 
-// Utility: read cookie (for NON-httpOnly cookies only)
+// Utility: read cookie
+export const getCookie = (name) => {
+  const value = `; ${document.cookie}`
+  const parts = value.split(`; ${name}=`)
+  if (parts.length === 2) return parts.pop().split(";").shift()
+  return null
+}
 
+// Utility: set/delete cookies from the frontend.
+// NOTE: httpOnly cookies CANNOT be set/read from JS (server only).
+// We only set cookies here if the backend returns tokens in the JSON response.
+export const setCookie = (name, value, { maxAgeSeconds } = {}) => {
+  if (value == null) return
+  const encoded = encodeURIComponent(String(value))
+  const parts = [`${name}=${encoded}`, "Path=/", "SameSite=Lax"]
+  // Do NOT set Secure on localhost over http.
+  if (typeof maxAgeSeconds === "number") parts.push(`Max-Age=${maxAgeSeconds}`)
+  document.cookie = parts.join("; ")
+}
 
-// NOTE:
-// accessToken/refreshToken cookies are httpOnly (backend-managed).
-// Frontend JS CANNOT read or clear them using document.cookie.
-// Logout MUST be done via backend endpoint.
+export const deleteCookie = (name) => {
+  document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`
+}
 
+// ---- Cookie-first auth helpers ----
+// We are using COOKIES for session persistence.
+// - If backend uses httpOnly cookies, the browser will send them automatically (credentials: 'include').
+// - If backend returns tokens in JSON, we store them in non-httpOnly cookies here.
+const COOKIE_KEYS = {
+  accessToken: "accessToken",
+  refreshToken: "refreshToken",
+}
+
+// Minimal user cookie (UI persistence). Keep it small (cookie size limit ~4KB).
+const USER_COOKIE_KEY = "vms_user"
+
+export const getStoredUser = () => {
+  try {
+    const raw = getCookie(USER_COOKIE_KEY)
+    if (!raw) return null
+    return JSON.parse(decodeURIComponent(raw))
+  } catch {
+    return null
+  }
+}
+
+export const persistUser = (user, { rememberMe = false } = {}) => {
+  if (!user) return
+  const maxAgeSeconds = rememberMe ? 60 * 60 * 24 * 7 : undefined
+  // Store only safe/minimal fields
+  const minimal = {
+    id: user.id || user._id || user.userId,
+    name: user.name,
+    email: user.email,
+    mobile: user.mobile,
+    roleName: user.roleName || user.role?.roleName,
+    roles: user.roles,
+  }
+  setCookie(USER_COOKIE_KEY, JSON.stringify(minimal), { maxAgeSeconds })
+}
+
+export const clearStoredUser = () => {
+  deleteCookie(USER_COOKIE_KEY)
+}
+
+export const getStoredToken = () => getCookie(COOKIE_KEYS.accessToken) || null
+
+export const getStoredRefreshToken = () => getCookie(COOKIE_KEYS.refreshToken) || null
+
+export const persistTokens = ({ accessToken, refreshToken, rememberMe = false } = {}) => {
+  // If rememberMe is false: session cookie (no Max-Age)
+  // If true: persist for 7 days by default (adjust if your backend TTL differs)
+  const maxAgeSeconds = rememberMe ? 60 * 60 * 24 * 7 : undefined
+  if (accessToken) setCookie(COOKIE_KEYS.accessToken, accessToken, { maxAgeSeconds })
+  if (refreshToken) setCookie(COOKIE_KEYS.refreshToken, refreshToken, { maxAgeSeconds })
+}
+
+export const clearPersistedTokens = () => {
+  deleteCookie(COOKIE_KEYS.accessToken)
+  deleteCookie(COOKIE_KEYS.refreshToken)
+}
+
+// HTTP client utility
 export const apiClient = {
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`
@@ -37,9 +112,17 @@ export const apiClient = {
       method,
       headers,
       credentials: options.credentials ?? "include",
+      // Prevent browser caching of API responses (fixes unexpected 304 + empty body on refresh)
+      cache: options.cache ?? "no-store",
     }
 
-    const response = await fetch(url, config)
+    // If a readable token cookie exists (non-httpOnly), attach it.
+    // If backend uses httpOnly cookies, it will authenticate via cookie automatically.
+    const token = getStoredToken()
+    if (token && !config.headers.Authorization) config.headers.Authorization = `Bearer ${token}`
+
+    try {
+      const response = await fetch(url, config)
 
     const isAuthEndpoint = endpoint === "/user/login" || endpoint === "/user/logout"
 
@@ -61,7 +144,74 @@ export const apiClient = {
       throw err
     }
 
-    return await parseJsonSafe(response)
+      return await parseJsonSafe(response)
+    } catch (error) {
+      console.error("API request failed:", error)
+      throw error
+    }
+  },
+
+  async getValidToken() {
+    return getStoredToken()
+  },
+
+  async refreshToken() {
+    try {
+      const refreshToken = getStoredRefreshToken()
+      // Some backends use httpOnly cookies and don't expose refreshToken to JS.
+      // In that case we still try the refresh endpoint with credentials.
+      const response = await fetch(`${API_BASE_URL}/user/refresh-token`, {
+        method: "POST",
+        credentials: "include",
+        headers: refreshToken ? { "Content-Type": "application/json" } : undefined,
+        body: refreshToken ? JSON.stringify({ refreshToken }) : undefined,
+      })
+
+      if (response.ok) {
+        const data = await parseJsonSafe(response)
+        // Some APIs return { token }, others { accessToken }
+        // Also, if server sets httpOnly cookie, that's already handled via credentials: 'include'
+        const newAccessToken = data.token || data.accessToken || null
+        if (newAccessToken) {
+          // If backend returns token in body, keep cookie in sync.
+          persistTokens({ accessToken: newAccessToken, rememberMe: true })
+        }
+        return newAccessToken
+      }
+
+      return null
+    } catch (error) {
+      console.error("Token refresh failed:", error)
+      return null
+    }
+  },
+
+  async getAuthData() {
+    const token = getStoredToken()
+    if (!token) return null
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/user/roles/fetch-roles`, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await parseJsonSafe(response)
+        return {
+          user: data.user || data.data || data,
+          token,
+        }
+      }
+      return null
+    } catch (error) {
+      console.error("Error getting auth data from backend:", error)
+      return null
+    }
   },
 }
 
@@ -107,40 +257,30 @@ export const authAPI = {
   },
 
   logout: async () => {
-    // ✅ Simple POST (no headers/body) => browser applies Set-Cookie clears reliably
-    const res = await fetch(`${API_BASE_URL}/user/logout`, {
-      method: "POST",
-      credentials: "include",
-    })
-
-    if (!res.ok && res.status !== 404) {
-      const err = new Error(`Logout failed: ${res.status}`)
-      err.status = res.status
-      throw err
+    try {
+      await apiClient.request("/user/logout", {
+        method: "POST",
+      })
+    } catch (error) {
+      console.warn(
+        "Logout API call failed (continuing local logout):",
+        error
+      )
+    } finally {
+      // 🔥 FRONTEND SAFETY NET
+      clearAuthCookies()
     }
   },
 
-  // ✅ NO /me, NO /refresh-token
-  // Just hit any protected endpoint that exists in your backend.
-  // 200/204 => authenticated, 403 => authenticated but not allowed, 401 => not authenticated
+  // ✅ Always return normalized shape
   checkAuth: async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/user/dashboard/countings`, {
-        method: "GET",
-        credentials: "include",
-      })
-
-      if (res.ok || res.status === 403) return { success: true }
-      if (res.status === 401) return { success: false }
-
-      return { success: false }
-    } catch (error) {
-      console.error("Auth check failed:", error)
-      return { success: false }
-    }
+    // IMPORTANT:
+    // The user requested that we do NOT call /user/roles/fetch-roles for auth checks.
+    // So checkAuth becomes a cookie-only rehydration helper.
+    const stored = getStoredUser()
+    return stored ? { success: true, data: stored } : { success: false, data: null }
   },
 }
-
 
 // -------------------- ALL BUSINESS APIs BELOW (UNCHANGED) --------------------
 // visitorsAPI, usersAPI, rolesAPI, companiesAPI, countriesAPI, statesAPI,
