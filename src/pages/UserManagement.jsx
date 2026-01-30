@@ -4,6 +4,73 @@ import { useState, useEffect } from "react"
 import { Search, Plus, Edit, Trash2, Eye } from "lucide-react"
 import { authAPI, usersAPI, departmentsAPI, companiesAPI, plantsAPI, rolesAPI } from "../services/api"
 
+// Helper function to convert technical errors to user-friendly messages
+const getReadableErrorMessage = (errorMessage) => {
+  if (!errorMessage) return "An unexpected error occurred. Please try again."
+  
+  const message = errorMessage.toLowerCase()
+  
+  // Handle BSON/ObjectId errors
+  if (message.includes("bsonerror") || message.includes("objectid") || message.includes("cast to")) {
+    if (message.includes("department")) {
+      return "Please select a valid department from the dropdown."
+    }
+    if (message.includes("plant")) {
+      return "Please select a valid plant from the dropdown."
+    }
+    if (message.includes("company")) {
+      return "Please select a valid company from the dropdown."
+    }
+    if (message.includes("role")) {
+      return "Please select a valid role from the dropdown."
+    }
+    return "Invalid selection. Please check your dropdown selections and try again."
+  }
+  
+  // Handle validation errors
+  if (message.includes("validation failed")) {
+    return "Please check your form inputs. Some required fields may be missing or invalid."
+  }
+  
+  // Handle duplicate errors
+  if (message.includes("duplicate") || message.includes("already exists")) {
+    if (message.includes("mobile")) {
+      return "A user with this mobile number already exists."
+    }
+    if (message.includes("email")) {
+      return "A user with this email already exists."
+    }
+    return "This record already exists. Please check your inputs."
+  }
+  
+  // Handle network errors
+  if (message.includes("network") || message.includes("fetch") || message.includes("connection")) {
+    return "Unable to connect to the server. Please check your internet connection and try again."
+  }
+  
+  // Handle authentication errors
+  if (message.includes("unauthorized") || message.includes("401")) {
+    return "Your session has expired. Please log in again."
+  }
+  
+  // Handle permission errors
+  if (message.includes("forbidden") || message.includes("403")) {
+    return "You do not have permission to perform this action."
+  }
+  
+  // Handle required field errors
+  if (message.includes("required")) {
+    return "Please fill in all required fields."
+  }
+  
+  // Return original if no match, but clean it up a bit
+  if (errorMessage.length > 100) {
+    return "An error occurred while processing your request. Please try again."
+  }
+  
+  return errorMessage
+}
+
 export default function UserManagement() {
   const [showForm, setShowForm] = useState(false)
   const [users, setUsers] = useState([])
@@ -135,12 +202,12 @@ export default function UserManagement() {
           await fetchUsers() // Refresh the users list
           resetForm()
         } else {
-          setError(response.message || "Failed to create user")
+          setError(getReadableErrorMessage(response.message))
         }
       }
     } catch (error) {
       console.error("Error submitting form:", error)
-      setError(error.message || "Error submitting form")
+      setError(getReadableErrorMessage(error.message))
     } finally {
       setLoading(false)
     }
@@ -235,9 +302,9 @@ export default function UserManagement() {
               >
                 <option value="">Select Department</option>
                 {departments.map((dept) => (
-                  <option key={dept.id} value={dept.id}>
-                    {(dept.departmentName || dept.name || "").toUpperCase()}
-                  </option>
+<option key={dept._id || dept.id} value={dept._id || dept.id}>
+  {(dept.departmentName || dept.name || "").toUpperCase()}
+  </option>
                 ))}
               </select>
             </div>
@@ -288,9 +355,9 @@ export default function UserManagement() {
                 <option value="">Select Plant</option>
                 {Array.isArray(plants) &&
                   plants.map((plant) => (
-                    <option key={plant.id} value={plant.id}>
-                      {(plant.plantName || plant.name || "").toUpperCase()}
-                    </option>
+<option key={plant._id || plant.id} value={plant._id || plant.id}>
+  {(plant.plantName || plant.name || "").toUpperCase()}
+  </option>
                   ))}
               </select>
             </div>
