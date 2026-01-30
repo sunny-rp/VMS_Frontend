@@ -17,6 +17,7 @@ const WorkFlow = () => {
       approverName: "Adhish Pandit",
       initiatedBy: "Adhish Pandit",
       documentStatus: "Approved",
+      
     },
     {
       id: 2,
