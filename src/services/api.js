@@ -538,7 +538,7 @@ export const plantsAPI = {
   },
   update: async (plantId, plantData) => {
     return await apiClient.request(`/user/plants/edit-plant/${plantId}`, {
-      method: "PUT",
+      method: "PATCH",
       body: JSON.stringify(plantData),
     })
   },
