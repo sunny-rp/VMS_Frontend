@@ -556,9 +556,9 @@ export const departmentsAPI = {
       body: JSON.stringify(departmentData),
     })
   },
-  getAll: async (companyId = null) => {
-    if (companyId) {
-      return await apiClient.request(`/visitor-form/departments/fetch-departments/?companyId=${companyId}`)
+  getAll: async (plantId = null) => {
+    if (plantId) {
+      return await apiClient.request(`/visitor-form/departments/fetch-departments/?plantId=${plantId}`)
     }
     return await apiClient.request("/user/departments/fetch-departments")
   },
@@ -605,9 +605,9 @@ export const areasAPI = {
       body: JSON.stringify(areaData),
     })
   },
-  getAll: async (companyId = null) => {
-    if (companyId) {
-      return await apiClient.request(`/visitor-form/areas/fetch-areas/?companyId=${companyId}`)
+  getAll: async (plantId = null) => {
+    if (plantId) {
+      return await apiClient.request(`/visitor-form/areas/fetch-areas/?plantId=${plantId}`)
     }
     return await apiClient.request("/user/areas/fetch-areas")
   },
