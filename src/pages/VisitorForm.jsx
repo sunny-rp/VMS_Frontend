@@ -88,14 +88,14 @@ const VisitorForm = () => {
         setError("")
         console.log("[v0] Loading form data with URL params:", { plantIdFromUrl, companyIdFromUrl })
 
-        const dataPromises = [
+const dataPromises = [
           plantsAPI.getAll(companyIdFromUrl),
-          departmentsAPI.getAll(companyIdFromUrl),
-          usersAPI.getAll(companyIdFromUrl),
-          areasAPI.getAll(companyIdFromUrl),
+          departmentsAPI.getAll(plantIdFromUrl),
+          usersAPI.getAll(plantIdFromUrl),
+          areasAPI.getAll(plantIdFromUrl),
         ]
 
-        const companiesPromise = companiesAPI.getAll().catch((error) => {
+const companiesPromise = companiesAPI.getAll(true).catch((error) => {
           console.warn("[v0] Companies API failed, continuing without company data:", error)
           return { data: { data: [] } }
         })

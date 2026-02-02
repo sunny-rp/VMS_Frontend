@@ -333,9 +333,9 @@ export const visitorsAPI = {
 }
 
 export const usersAPI = {
-  getAll: async (companyId = null, filters = {}) => {
-    if (companyId) {
-      return await apiClient.request(`/visitor-form/fetch-users/?companyId=${companyId}`)
+  getAll: async (plantId = null, filters = {}) => {
+    if (plantId) {
+      return await apiClient.request(`/visitor-form/fetch-users/?plantId=${plantId}`)
     }
 
     const queryParams = new URLSearchParams()
