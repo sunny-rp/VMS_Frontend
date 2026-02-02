@@ -116,23 +116,26 @@ const PublicAppointmentDetails = () => {
     return <AlertCircle className="w-5 h-5" />
   }
 
-  const formatDate = (dateString) => {
+const formatDate = (dateString) => {
     if (!dateString) return "N/A"
     const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", {
+    return date.toLocaleDateString("en-IN", {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
+      timeZone: "Asia/Kolkata",
     })
   }
 
   const formatTime = (timeString) => {
     if (!timeString) return "N/A"
     const date = new Date(timeString)
-    return date.toLocaleTimeString("en-US", {
+    return date.toLocaleTimeString("en-IN", {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: true,
+      timeZone: "Asia/Kolkata",
     })
   }
 
