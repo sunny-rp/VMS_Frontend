@@ -78,9 +78,16 @@ const LoginPage = () => {
       return
     }
 
+    const displayName =
+      result.data?.fullname ||
+      result.data?.fullName ||
+      result.data?.name ||
+      "User";
+
     toast.success("Login successful!", {
-      description: `Welcome back, ${result.data?.name || "User"}!`,
-    })
+      description: `Welcome back, ${displayName}!`,
+    });
+
 
     const from = location.state?.from?.pathname || "/dashboard"
     navigate(from, { replace: true })

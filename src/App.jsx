@@ -79,10 +79,20 @@ function App() {
           }
         />
 
-        <Route path="/visitorform" element={<VisitorForm />} />
-        <Route path="/appointment/:appointmentId" element={<PublicAppointmentDetails />} />
+        <Route path="/profile" element={<Profile />} />
 
-        <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
+        <Route path="/visitorform" element={<VisitorForm />} />
+        <Route
+          path="/appointment/:appointmentId"
+          element={<PublicAppointmentDetails />}
+        />
+
+        <Route
+          path="/"
+          element={
+            <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
+          }
+        />
 
         <Route
           path="/"
@@ -110,14 +120,29 @@ function App() {
           <Route path="city" element={<City />} />
           <Route path="role" element={<Role />} />
           <Route path="user-management" element={<UserManagement />} />
-          <Route path="role-wise-screen-mapping" element={<RoleWiseScreenMapping />} />
-          <Route path="user-wise-screen-mapping" element={<UserWiseScreenMapping />} />
-          <Route path="approval-configuration" element={<ApprovalConfiguration />} />
+          <Route
+            path="role-wise-screen-mapping"
+            element={<RoleWiseScreenMapping />}
+          />
+          <Route
+            path="user-wise-screen-mapping"
+            element={<UserWiseScreenMapping />}
+          />
+          <Route
+            path="approval-configuration"
+            element={<ApprovalConfiguration />}
+          />
           <Route path="workflow" element={<WorkFlow />} />
           <Route path="appointment" element={<Appointment />} />
           <Route path="checkinout" element={<CheckInOut />} />
-          <Route path="checkin-checkout-report" element={<CheckInCheckOutReport />} />
-          <Route path="vehicle-invoice-report" element={<VehicleInvoiceReport />} />
+          <Route
+            path="checkin-checkout-report"
+            element={<CheckInCheckOutReport />}
+          />
+          <Route
+            path="vehicle-invoice-report"
+            element={<VehicleInvoiceReport />}
+          />
           <Route path="feedback-report" element={<FeedbackReport />} />
 
           <Route
@@ -134,11 +159,17 @@ function App() {
         {/* Unknown URL handling */}
         <Route
           path="*"
-          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
+          element={
+            isAuthenticated ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
         />
       </Routes>
     </AuthGate>
-  )
+  );
 }
 
 export default App
