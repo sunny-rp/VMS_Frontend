@@ -2,7 +2,18 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { Calendar, Clock, MapPin, User, FileText, CheckCircle, XCircle, AlertCircle, LogIn, LogOut } from "lucide-react"
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  User,
+  FileText,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  LogIn,
+  LogOut,
+} from "lucide-react"
 import { toast } from "sonner"
 import { appointmentsAPI } from "../services/api"
 
@@ -23,7 +34,9 @@ const PublicAppointmentDetails = () => {
       console.log("[v0] Fetching appointment:", appointmentId)
       const data = await appointmentsAPI.getPublicById(appointmentId)
       console.log("[v0] API Response:", data)
-      setAppointment(data.data || data)
+
+      // API might return { statusCode, data, ... } OR direct appointment
+      setAppointment(data?.data || data)
     } catch (err) {
       console.error("[v0] Error fetching appointment:", err)
       setError(err.message || "Failed to load appointment details")
@@ -33,9 +46,7 @@ const PublicAppointmentDetails = () => {
   }
 
   useEffect(() => {
-    if (appointmentId) {
-      fetchAppointmentDetails()
-    }
+    if (appointmentId) fetchAppointmentDetails()
   }, [appointmentId])
 
   const handleCheckIn = async () => {
@@ -45,9 +56,7 @@ const PublicAppointmentDetails = () => {
       const API_BASE_URL = import.meta.env.VITE_PUBLIC_API_BASE_URL || "http://localhost:5000/api/v1"
       const response = await fetch(`${API_BASE_URL}/visitor-form/appointments/checkin-visitors/${appointmentId}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       })
 
@@ -56,8 +65,7 @@ const PublicAppointmentDetails = () => {
         throw new Error(errorData.message || "Failed to check in")
       }
 
-      const result = await response.json()
-      console.log("[v0] Check-in response:", result)
+      await response.json()
       toast.success("Checked in successfully!")
       await fetchAppointmentDetails()
     } catch (err) {
@@ -75,9 +83,7 @@ const PublicAppointmentDetails = () => {
       const API_BASE_URL = import.meta.env.VITE_PUBLIC_API_BASE_URL || "http://localhost:5000/api/v1"
       const response = await fetch(`${API_BASE_URL}/visitor-form/appointments/checkout-visitors/${appointmentId}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       })
 
@@ -86,8 +92,7 @@ const PublicAppointmentDetails = () => {
         throw new Error(errorData.message || "Failed to check out")
       }
 
-      const result = await response.json()
-      console.log("[v0] Check-out response:", result)
+      await response.json()
       toast.success("Checked out successfully!")
       await fetchAppointmentDetails()
     } catch (err) {
@@ -98,25 +103,57 @@ const PublicAppointmentDetails = () => {
     }
   }
 
-  const getStatusColor = (status) => {
-    const statusMap = {
-      pending: "bg-yellow-100 text-yellow-800 border-yellow-300",
-      approved: "bg-green-100 text-green-800 border-green-300",
-      rejected: "bg-red-100 text-red-800 border-red-300",
-      completed: "bg-blue-100 text-blue-800 border-blue-300",
-      cancelled: "bg-gray-100 text-gray-800 border-gray-300",
-    }
-    return statusMap[status?.toLowerCase()] || "bg-gray-100 text-gray-800 border-gray-300"
+  // ✅ IMPORTANT:
+  // Your backend sends appointmentDate like "2026-02-02T11:27:00.000Z"
+  // But you WANT to show 11:27 (IST) exactly as created (no UTC->IST shift).
+  // So we "ignore" the Z and re-interpret the wall-clock time as IST (+05:30).
+  const IST_TZ = "Asia/Kolkata"
+
+  const parseAsISTWallTime = (isoString) => {
+    if (!isoString) return null
+
+    // Extract YYYY-MM-DD, HH:mm:ss, optional .ms (ignore timezone suffix like Z / +xx:xx)
+    const match = isoString.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(\.\d+)?/)
+    if (!match) return new Date(isoString)
+
+    const [, datePart, timePart, msPart = ""] = match
+
+    // Rebuild same wall time in IST explicitly
+    return new Date(`${datePart}T${timePart}${msPart}+05:30`)
   }
 
-  const getStatusIcon = (status) => {
-    const statusLower = status?.toLowerCase()
-    if (statusLower === "approved" || statusLower === "completed") return <CheckCircle className="w-5 h-5" />
-    if (statusLower === "rejected" || statusLower === "cancelled") return <XCircle className="w-5 h-5" />
-    return <AlertCircle className="w-5 h-5" />
+  const formatISTDateFromDateObj = (dateObj) =>
+    dateObj.toLocaleDateString("en-IN", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: IST_TZ,
+    })
+
+  const formatISTTimeFromDateObj = (dateObj) =>
+    dateObj.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: IST_TZ,
+    })
+
+  // ✅ Use these for appointmentDate + appointmentValidTill (show EXACT IST wall time as created)
+  const formatAppointmentDate = (isoString) => {
+    const d = parseAsISTWallTime(isoString)
+    if (!d || isNaN(d.getTime())) return "N/A"
+    return formatISTDateFromDateObj(d)
   }
 
-const formatDate = (dateString) => {
+  const formatAppointmentTime = (isoString) => {
+    const d = parseAsISTWallTime(isoString)
+    if (!d || isNaN(d.getTime())) return "N/A"
+    return formatISTTimeFromDateObj(d)
+  }
+
+  // ✅ Keep these for check-in/out because those should be real instants (UTC->IST conversion is correct)
+  const formatDate = (dateString) => {
     if (!dateString) return "N/A"
     const date = new Date(dateString)
     return date.toLocaleDateString("en-IN", {
@@ -124,7 +161,7 @@ const formatDate = (dateString) => {
       year: "numeric",
       month: "long",
       day: "numeric",
-      timeZone: "Asia/Kolkata",
+      timeZone: IST_TZ,
     })
   }
 
@@ -135,7 +172,7 @@ const formatDate = (dateString) => {
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
-      timeZone: "Asia/Kolkata",
+      timeZone: IST_TZ,
     })
   }
 
@@ -188,7 +225,11 @@ const formatDate = (dateString) => {
         <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl overflow-hidden border border-gray-200">
           {/* Status Banner */}
           <div
-            className={`p-4 sm:p-6 border-b ${appointment.isAppointmentActive ? "bg-green-100 text-green-800 border-green-300" : "bg-gray-100 text-gray-800 border-gray-300"} border`}
+            className={`p-4 sm:p-6 border-b ${
+              appointment.isAppointmentActive
+                ? "bg-green-100 text-green-800 border-green-300"
+                : "bg-gray-100 text-gray-800 border-gray-300"
+            } border`}
           >
             <div className="flex items-center justify-center space-x-3">
               {appointment.isAppointmentActive ? <CheckCircle className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
@@ -264,25 +305,40 @@ const formatDate = (dateString) => {
                   <Calendar className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
                   <div className="min-w-0">
                     <p className="text-sm text-gray-500">Appointment Date</p>
-                    <p className="font-semibold text-gray-900 break-words">{formatDate(appointment.appointmentDate)}</p>
+                    {/* ✅ Show same date as created in IST wall time */}
+                    <p className="font-semibold text-gray-900 break-words">
+                      {formatAppointmentDate(appointment.appointmentDate)}
+                    </p>
                   </div>
                 </div>
+
                 <div className="flex items-start space-x-3">
                   <Clock className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
                   <div className="min-w-0">
                     <p className="text-sm text-gray-500">Appointment Time</p>
-                    <p className="font-semibold text-gray-900">{formatTime(appointment.appointmentDate)}</p>
+                    {/* ✅ Show same time as created in IST wall time */}
+                    <p className="font-semibold text-gray-900">
+                      {formatAppointmentTime(appointment.appointmentDate)}
+                    </p>
                   </div>
                 </div>
+
                 <div className="flex items-start space-x-3">
                   <Calendar className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
                   <div className="min-w-0">
                     <p className="text-sm text-gray-500">Valid Till</p>
+                    {/* ✅ Also show same date as created in IST wall time */}
                     <p className="font-semibold text-gray-900 break-words">
-                      {formatDate(appointment.appointmentValidTill)}
+                      {formatAppointmentDate(appointment.appointmentValidTill)}
                     </p>
+                    {/* If you want to show time also, uncomment below:
+                    <p className="text-sm text-gray-700">
+                      {formatAppointmentTime(appointment.appointmentValidTill)}
+                    </p>
+                    */}
                   </div>
                 </div>
+
                 <div className="flex items-start space-x-3">
                   <FileText className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
                   <div className="min-w-0">
@@ -301,9 +357,7 @@ const formatDate = (dateString) => {
                   <FileText className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
                   <div className="min-w-0">
                     <p className="text-sm text-gray-500">Company</p>
-                    <p className="font-semibold text-gray-900 break-words">
-                      {appointment.company?.companyName || "N/A"}
-                    </p>
+                    <p className="font-semibold text-gray-900 break-words">{appointment.company?.companyName || "N/A"}</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-3">
@@ -386,7 +440,6 @@ const formatDate = (dateString) => {
             <div className="space-y-4 pt-4 border-t">
               <h2 className="text-lg sm:text-xl font-bold text-gray-900">Actions</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                {/* Check-in Button */}
                 <button
                   onClick={handleCheckIn}
                   disabled={isCheckedIn || checkingIn}
@@ -400,7 +453,6 @@ const formatDate = (dateString) => {
                   <span>{checkingIn ? "Checking In..." : isCheckedIn ? "Already Checked In" : "Check In"}</span>
                 </button>
 
-                {/* Check-out Button */}
                 <button
                   onClick={handleCheckOut}
                   disabled={!isCheckedIn || isCheckedOut || checkingOut}
@@ -415,10 +467,10 @@ const formatDate = (dateString) => {
                     {checkingOut
                       ? "Checking Out..."
                       : isCheckedOut
-                        ? "Already Checked Out"
-                        : !isCheckedIn
-                          ? "Check In First"
-                          : "Check Out"}
+                      ? "Already Checked Out"
+                      : !isCheckedIn
+                      ? "Check In First"
+                      : "Check Out"}
                   </span>
                 </button>
               </div>
@@ -433,7 +485,6 @@ const formatDate = (dateString) => {
           </div>
         </div>
 
-        {/* Action Button */}
         <div className="mt-6 sm:mt-8 text-center">
           <button
             onClick={() => navigate("/")}
