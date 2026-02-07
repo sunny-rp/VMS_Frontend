@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useForm, useFieldArray } from "react-hook-form"
 import { Plus, Minus, User, Package, Calendar, Loader2 } from "lucide-react"
-import { plantsAPI, departmentsAPI, usersAPI, appointmentsAPI, companiesAPI, areasAPI } from "../services/api"
+import { plantsAPI, departmentsAPI, usersAPI, appointmentsAPI, companiesAPI } from "../services/api"
 import { toast } from "sonner"
 
 const VisitorForm = () => {
@@ -16,12 +16,13 @@ const VisitorForm = () => {
   const [departments, setDepartments] = useState([])
   const [users, setUsers] = useState([])
   const [companies, setCompanies] = useState([])
-  const [areas, setAreas] = useState([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [successData, setSuccessData] = useState(null)
   const [error, setError] = useState("")
+  const [departmentAutoFilled, setDepartmentAutoFilled] = useState(false)
+  const [lastAutoFilledPerson, setLastAutoFilledPerson] = useState("")
 
   const {
     register,
@@ -36,7 +37,6 @@ const VisitorForm = () => {
       plant: "",
       department: "",
       personToVisit: "",
-      areaToVisit: "",
       appointmentDate: "",
       appointmentValidTill: "",
       purposeOfVisit: "",
@@ -62,50 +62,110 @@ const VisitorForm = () => {
     name: "visitors",
   })
 
-  const watchedDepartment = watch("department")
+  const watchedPersonToVisit = watch("personToVisit")
 
-  const filteredUsers = useMemo(() => {
-    if (!watchedDepartment || users.length === 0) {
-      return users
+  // Auto-fill department when person to visit changes
+  useEffect(() => {
+    if (!watchedPersonToVisit || users.length === 0) {
+      if (!watchedPersonToVisit && departmentAutoFilled) {
+        setValue("department", "", { shouldValidate: true, shouldDirty: true })
+        setDepartmentAutoFilled(false)
+        setLastAutoFilledPerson("")
+      }
+      return
     }
 
-    const filtered = users.filter((user) => {
-      const userDepartment = user.department || user.departmentId || user.dept || user.deptId
-      return (
-        userDepartment === watchedDepartment ||
-        user.department?._id === watchedDepartment ||
-        user.departmentId === watchedDepartment
-      )
-    })
+    // If same person already auto-filled, skip
+    if (departmentAutoFilled && watchedPersonToVisit === lastAutoFilledPerson) {
+      return
+    }
 
-    return filtered
-  }, [watchedDepartment, users])
+    const selectedUser = users.find((user) => user._id === watchedPersonToVisit)
+    if (!selectedUser) return
+
+    // Extract the department ID from the user object (could be populated object or string)
+    const userDept = selectedUser.department
+    const userDeptId =
+      userDept?._id ||
+      selectedUser.departmentId ||
+      selectedUser.dept?._id ||
+      selectedUser.deptId ||
+      (typeof userDept === "string" ? userDept : "")
+
+    // Strategy 1: Match by user's department _id against departments list
+    let matchedDept = null
+    if (userDeptId) {
+      const deptIdStr = String(userDeptId)
+      matchedDept = departments.find((d) => String(d._id || d.id) === deptIdStr)
+    }
+
+    // Strategy 2: Find the department where this user is the headOfDepartment
+    if (!matchedDept) {
+      matchedDept = departments.find(
+        (d) =>
+          d.headOfDepartment?._id === watchedPersonToVisit ||
+          String(d.headOfDepartment) === watchedPersonToVisit
+      )
+    }
+
+    // Strategy 3: Find the department where departmentCreator matches
+    if (!matchedDept) {
+      matchedDept = departments.find(
+        (d) =>
+          d.departmentCreator?._id === watchedPersonToVisit ||
+          String(d.departmentCreator) === watchedPersonToVisit
+      )
+    }
+
+    if (matchedDept) {
+      const matchedId = String(matchedDept._id || matchedDept.id)
+      setValue("department", matchedId, { shouldValidate: true, shouldDirty: true })
+      setDepartmentAutoFilled(true)
+      setLastAutoFilledPerson(watchedPersonToVisit)
+      toast.success(
+        `Department "${(matchedDept.departmentName || matchedDept.name || "").toUpperCase()}" auto-selected`
+      )
+    } else if (userDeptId) {
+      // Department not in the plant's list - add it dynamically from user data
+      const newDeptId = String(userDeptId)
+      const newDeptName = userDept?.departmentName || userDept?.name || "Unknown Department"
+      setDepartments((prev) => {
+        // Avoid duplicates
+        if (prev.some((d) => String(d._id || d.id) === newDeptId)) return prev
+        return [...prev, { _id: newDeptId, departmentName: newDeptName }]
+      })
+      setTimeout(() => {
+        setValue("department", newDeptId, { shouldValidate: true, shouldDirty: true })
+      }, 0)
+      setDepartmentAutoFilled(true)
+      setLastAutoFilledPerson(watchedPersonToVisit)
+      toast.success(
+        `Department "${newDeptName.toUpperCase()}" auto-selected`
+      )
+    }
+  }, [watchedPersonToVisit, users, departments, setValue, departmentAutoFilled, lastAutoFilledPerson])
 
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true)
         setError("")
-        console.log("[v0] Loading form data with URL params:", { plantIdFromUrl, companyIdFromUrl })
 
-const dataPromises = [
+        const dataPromises = [
           plantsAPI.getAll(companyIdFromUrl),
           departmentsAPI.getAll(plantIdFromUrl),
           usersAPI.getAll(plantIdFromUrl),
-          areasAPI.getAll(plantIdFromUrl),
         ]
 
-const companiesPromise = companiesAPI.getAll(true).catch((error) => {
-          console.warn("[v0] Companies API failed, continuing without company data:", error)
+        const companiesPromise = companiesAPI.getAll(true).catch((err) => {
+          console.warn("Companies API failed, continuing without company data:", err)
           return { data: { data: [] } }
         })
 
-        const [plantsRes, departmentsRes, usersRes, areasRes, companiesRes] = await Promise.all([
+        const [plantsRes, departmentsRes, usersRes, companiesRes] = await Promise.all([
           ...dataPromises,
           companiesPromise,
         ])
-
-        console.log("[v0] Raw API responses:", { plantsRes, departmentsRes, usersRes, companiesRes, areasRes })
 
         const plantsData = Array.isArray(plantsRes?.data?.data)
           ? plantsRes.data.data
@@ -131,68 +191,32 @@ const companiesPromise = companiesAPI.getAll(true).catch((error) => {
             ? companiesRes.data
             : []
 
-        const areasData = Array.isArray(areasRes?.data?.areas)
-          ? areasRes.data.areas
-          : Array.isArray(areasRes?.data?.data)
-            ? areasRes.data.data
-            : Array.isArray(areasRes?.data)
-              ? areasRes.data
-              : []
-
-        console.log("[v0] Extracted arrays:", {
-          plants: plantsData,
-          plantsCount: plantsData.length,
-          departments: departmentsData,
-          departmentsCount: departmentsData.length,
-          users: usersData,
-          usersCount: usersData.length,
-          companies: companiesData,
-          companiesCount: companiesData.length,
-          areas: areasData,
-          areasCount: areasData.length,
-        })
-
         setPlants(plantsData)
         setDepartments(departmentsData)
         setUsers(usersData)
         setCompanies(companiesData)
-        setAreas(areasData)
 
         if (plantIdFromUrl && plantsData.length > 0) {
           const matchingPlant = plantsData.find((p) => p._id === plantIdFromUrl || p.id === plantIdFromUrl)
           if (matchingPlant) {
-            console.log("[v0] Pre-populating plant:", matchingPlant)
             setValue("plant", matchingPlant._id || matchingPlant.id)
             toast.success(`Plant "${matchingPlant.plantName || matchingPlant.name}" pre-selected`)
-          } else {
-            console.warn("[v0] Plant not found for ID:", plantIdFromUrl)
           }
         }
 
         if (companyIdFromUrl && companiesData.length > 0) {
           const matchingCompany = companiesData.find((c) => c._id === companyIdFromUrl || c.id === companyIdFromUrl)
           if (matchingCompany) {
-            console.log("[v0] Pre-populating company:", matchingCompany)
             setValue("visitors.0.company", matchingCompany.companyName || matchingCompany.name || companyIdFromUrl)
             toast.success(`Company "${matchingCompany.companyName || matchingCompany.name}" pre-selected`)
-          } else {
-            console.warn("[v0] Company not found for ID:", companyIdFromUrl)
           }
         }
 
-        if (
-          plantsData.length === 0 &&
-          departmentsData.length === 0 &&
-          usersData.length === 0 &&
-          areasData.length === 0
-        ) {
-          console.warn("[v0] No data loaded from any API")
+        if (plantsData.length === 0 && departmentsData.length === 0 && usersData.length === 0) {
           toast.error("No form data available. Please contact your administrator.")
-        } else {
-          console.log("[v0] Form data loaded successfully")
         }
-      } catch (error) {
-        console.error("[v0] Error loading form data:", error)
+      } catch (err) {
+        console.error("Error loading form data:", err)
         toast.error("Failed to load some form data. Please try refreshing.")
         setError("Some form data could not be loaded")
       } finally {
@@ -222,16 +246,12 @@ const companiesPromise = companiesAPI.getAll(true).catch((error) => {
       setError("Plant is required")
       return
     }
-    if (!data.department) {
-      setError("Department is required")
-      return
-    }
     if (!data.personToVisit) {
       setError("Person to visit is required")
       return
     }
-    if (!data.areaToVisit) {
-      setError("Area to visit is required")
+    if (!data.department) {
+      setError("Department is required")
       return
     }
     if (!data.appointmentDate) {
@@ -302,7 +322,6 @@ const companiesPromise = companiesAPI.getAll(true).catch((error) => {
         plant: data.plant,
         department: data.department,
         personToVisit: data.personToVisit,
-        areaToVisit: data.areaToVisit,
         appointmentDate: data.appointmentDate,
         appointmentValidTill: data.appointmentValidTill,
         purposeOfVisit: data.purposeOfVisit,
@@ -323,8 +342,8 @@ const companiesPromise = companiesAPI.getAll(true).catch((error) => {
       const response = await appointmentsAPI.create(appointmentData)
       setSuccessData(response.data)
       setSuccess(true)
-    } catch (error) {
-      console.error("Error creating appointment:", error)
+    } catch (err) {
+      console.error("Error creating appointment:", err)
       setError("Failed to create appointment. Please try again.")
     } finally {
       setSubmitting(false)
@@ -338,6 +357,7 @@ const companiesPromise = companiesAPI.getAll(true).catch((error) => {
   const handleBackToForm = () => {
     setSuccess(false)
     setSuccessData(null)
+    setDepartmentAutoFilled(false)
     reset()
   }
 
@@ -418,49 +438,43 @@ const companiesPromise = companiesAPI.getAll(true).catch((error) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Department *</label>
-                  <select
-                    {...register("department", { required: "Department is required" })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select Department</option>
-                    {departments.map((dept) => (
-                      <option key={dept._id || dept.id || dept.departmentName} value={dept._id || dept.id}>
-                        {(dept.departmentName || dept.name || "").toUpperCase()}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.department && <p className="text-red-500 text-sm mt-1">{errors.department.message}</p>}
-                </div>
-
-                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Person to Visit *</label>
                   <select
-                    {...register("personToVisit")}
+                    {...register("personToVisit", { required: "Person to visit is required" })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Person</option>
-                    {filteredUsers.map((user) => (
+                    {users.map((user) => (
                       <option key={user._id} value={user._id}>
                         {(user.fullname || user.name || "").toUpperCase()}
                       </option>
                     ))}
                   </select>
+                  {errors.personToVisit && <p className="text-red-500 text-sm mt-1">{errors.personToVisit.message}</p>}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Area to Visit *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Department *
+                    {departmentAutoFilled && (
+                      <span className="ml-2 text-xs font-normal text-green-600">(Auto-filled)</span>
+                    )}
+                  </label>
                   <select
-                    {...register("areaToVisit")}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    {...register("department", { required: "Department is required" })}
+                    disabled={departmentAutoFilled}
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      departmentAutoFilled ? "bg-gray-100 text-gray-600 cursor-not-allowed" : ""
+                    }`}
                   >
-                    <option value="">Select Area</option>
-                    {areas.map((area) => (
-                      <option key={area._id || area.id} value={area._id || area.id}>
-                        {(area.areaName || "").toUpperCase()}
+                    <option value="">Select Department</option>
+                    {departments.map((dept) => (
+                      <option key={String(dept._id || dept.id || dept.departmentName)} value={String(dept._id || dept.id)}>
+                        {(dept.departmentName || dept.name || "").toUpperCase()}
                       </option>
                     ))}
                   </select>
+                  {errors.department && <p className="text-red-500 text-sm mt-1">{errors.department.message}</p>}
                 </div>
 
                 <div>
