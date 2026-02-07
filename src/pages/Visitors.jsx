@@ -90,10 +90,14 @@ const Visitors = () => {
         mobile: appointment.visitors?.[0]?.mobile || "N/A",
         company: appointment.visitors?.[0]?.company || "N/A",
         status: "Active", // You can add status logic based on appointment dates
-        checkInTime: new Date(appointment.appointmentDate).toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
+        checkInTime: new Date(appointment.appointmentDate)
+          .toLocaleTimeString("en-IN", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+            timeZone: "UTC", // 🔑 IMPORTANT
+          }),
+
         personToVisit:
           appointment.personToVisit?.fullname?.toUpperCase() ||
           appointment.personToVisit?.name?.toUpperCase() ||
