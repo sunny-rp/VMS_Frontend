@@ -25,37 +25,37 @@ import { Html5Qrcode } from "html5-qrcode";
 // ✅ PassType => UI classes + Access labels
 const PASS_UI = {
   PURPLE: {
-    label: "PURPLE (VIP ACCESS)",
+    label: "PURPLE",
     banner: "bg-purple-100 text-purple-900 border-purple-300",
     badge: "bg-white/70 text-purple-800 border-purple-300",
     dot: "bg-purple-600",
   },
   RED: {
-    label: "RED (RESTRICTED ACCESS)",
+    label: "RED",
     banner: "bg-red-100 text-red-900 border-red-300",
     badge: "bg-white/70 text-red-800 border-red-300",
     dot: "bg-red-600",
   },
   GREEN: {
-    label: "GREEN (PRODUCTION ACCESS)",
+    label: "GREEN",
     banner: "bg-green-100 text-green-900 border-green-300",
     badge: "bg-white/70 text-green-800 border-green-300",
     dot: "bg-green-600",
   },
   YELLOW: {
-    label: "YELLOW (LIMITED ACCESS)",
+    label: "YELLOW",
     banner: "bg-yellow-100 text-yellow-900 border-yellow-300",
     badge: "bg-white/70 text-yellow-800 border-yellow-300",
     dot: "bg-yellow-500",
   },
   PENDING: {
-    label: "PENDING (WAITING APPROVAL)",
+    label: "PENDING",
     banner: "bg-gray-100 text-gray-900 border-gray-300",
     badge: "bg-white/70 text-gray-800 border-gray-300",
     dot: "bg-gray-500",
   },
   REJECT: {
-    label: "REJECT (DENIED)",
+    label: "REJECT",
     banner: "bg-gray-200 text-gray-900 border-gray-300",
     badge: "bg-white/70 text-gray-900 border-gray-300",
     dot: "bg-gray-700",
@@ -558,17 +558,6 @@ const PublicAppointmentDetails = () => {
                     <p className="text-sm text-gray-500">Appointment ID</p>
                     <p className="font-semibold text-gray-900 break-all">
                       {appointment.appointmentId || "N/A"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* ✅ Access Type */}
-                <div className="flex items-start gap-3 sm:col-span-2">
-                  <ShieldCheck className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm text-gray-500">Type of Access</p>
-                    <p className="font-semibold text-gray-900">
-                      {passUI.label}
                     </p>
                   </div>
                 </div>
