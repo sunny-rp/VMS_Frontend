@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Calendar,
@@ -12,12 +12,15 @@ import {
   XCircle,
   LogIn,
   LogOut,
-  Package, // ✅ FIX: was missing (caused error)
-  ShieldCheck, // ✅ for Access Type
-  Car, // ✅ for Vehicle No
+  Package,
+  ShieldCheck,
+  Car,
+  QrCode,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { appointmentsAPI } from "../services/api";
+import { Html5Qrcode } from "html5-qrcode";
 
 // ✅ PassType => UI classes + Access labels
 const PASS_UI = {
@@ -65,22 +68,30 @@ const normalizePassType = (v) => {
 };
 
 const PublicAppointmentDetails = () => {
-  const { appointmentId } = useParams();
+  const { appointmentId: routeParamId } = useParams(); // can be mongoId in your route
   const navigate = useNavigate();
 
   const [appointment, setAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
   const [checkingIn, setCheckingIn] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
+
+  // ✅ QR modal
+  const [showQR, setShowQR] = useState(false);
+  const [scannedText, setScannedText] = useState("");
+  const qrRef = useRef(null); // holds Html5Qrcode instance
+  const qrRegionId = "qr-reader-region";
 
   const fetchAppointmentDetails = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const res = await appointmentsAPI.getPublicById(appointmentId);
-      // supports both {data:{...}} or direct object
+      const res = await appointmentsAPI.getPublicById(routeParamId);
+
+      // supports both: {data:{...}} OR direct object
       setAppointment(res?.data || res);
     } catch (err) {
       console.error("[PublicAppointmentDetails] fetch error:", err);
@@ -91,23 +102,29 @@ const PublicAppointmentDetails = () => {
   };
 
   useEffect(() => {
-    if (appointmentId) fetchAppointmentDetails();
+    if (routeParamId) fetchAppointmentDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appointmentId]);
+  }, [routeParamId]);
 
-  const handleCheckIn = async () => {
+  // ✅ Always use appointmentId code like APT-XXXX for checkin/checkout
+  const appointmentCodeId = appointment?.appointmentId || routeParamId;
+
+  // ✅ Actual API call after scan
+  const callCheckInApi = async () => {
     try {
       setCheckingIn(true);
+
       const API_BASE_URL =
         import.meta.env.VITE_PUBLIC_API_BASE_URL ||
         "http://localhost:5000/api/v1";
 
       const response = await fetch(
-        `${API_BASE_URL}/visitor-form/appointments/checkin-visitors/${appointmentId}`,
+        `${API_BASE_URL}/visitor-form/appointments/checkin-visitors/${appointmentCodeId}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
+          // ✅ if your backend wants QR value, you can send it here
+          body: JSON.stringify({ scannedQr: scannedText || "" }),
         },
       );
 
@@ -124,18 +141,20 @@ const PublicAppointmentDetails = () => {
       toast.error(err?.message || "Failed to check in");
     } finally {
       setCheckingIn(false);
+      setScannedText("");
     }
   };
 
   const handleCheckOut = async () => {
     try {
       setCheckingOut(true);
+
       const API_BASE_URL =
         import.meta.env.VITE_PUBLIC_API_BASE_URL ||
         "http://localhost:5000/api/v1";
 
       const response = await fetch(
-        `${API_BASE_URL}/visitor-form/appointments/checkout-visitors/${appointmentId}`,
+        `${API_BASE_URL}/visitor-form/appointments/checkout-visitors/${appointmentCodeId}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -158,6 +177,88 @@ const PublicAppointmentDetails = () => {
       setCheckingOut(false);
     }
   };
+
+  // ✅ OPEN QR on button click (instead of calling API immediately)
+  const handleCheckIn = async () => {
+    setShowQR(true);
+  };
+
+  // ✅ Start/Stop QR scanner when modal opens/closes
+  useEffect(() => {
+    const startScanner = async () => {
+      try {
+        // Prevent double init
+        if (qrRef.current) return;
+
+        const qr = new Html5Qrcode(qrRegionId);
+        qrRef.current = qr;
+
+        await qr.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 260, height: 260 } },
+          async (decodedText) => {
+            // ✅ scanned ANY QR
+            setScannedText(decodedText || "");
+            toast.success("QR Scanned!");
+
+            // ✅ stop scanner
+            try {
+              await qr.stop();
+              await qr.clear();
+            } catch (e) {
+              // ignore
+            } finally {
+              qrRef.current = null;
+            }
+
+            // ✅ close modal
+            setShowQR(false);
+
+            // ✅ call your check-in API now
+            await callCheckInApi();
+          },
+          () => {
+            // ignore scan errors to avoid spam
+          },
+        );
+      } catch (e) {
+        console.error("QR start error:", e);
+        toast.error("Unable to access camera. Please allow camera permission.");
+        setShowQR(false);
+        // cleanup
+        try {
+          if (qrRef.current) {
+            await qrRef.current.stop();
+            await qrRef.current.clear();
+          }
+        } catch (_) {}
+        qrRef.current = null;
+      }
+    };
+
+    const stopScanner = async () => {
+      try {
+        if (qrRef.current) {
+          await qrRef.current.stop();
+          await qrRef.current.clear();
+        }
+      } catch (_) {
+        // ignore
+      } finally {
+        qrRef.current = null;
+      }
+    };
+
+    if (showQR) startScanner();
+    else stopScanner();
+
+    return () => {
+      stopScanner();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showQR]);
+
+  const closeQRModal = () => setShowQR(false);
 
   // ✅ Date handling (show same IST wall time)
   const IST_TZ = "Asia/Kolkata";
@@ -195,7 +296,7 @@ const PublicAppointmentDetails = () => {
     });
   };
 
-  // ✅ Checkin/out should be real instants
+  // ✅ checkin/out are real instants
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     const date = new Date(dateString);
@@ -461,7 +562,7 @@ const PublicAppointmentDetails = () => {
                   </div>
                 </div>
 
-                {/* ✅ Access Type shown here also */}
+                {/* ✅ Access Type */}
                 <div className="flex items-start gap-3 sm:col-span-2">
                   <ShieldCheck className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
                   <div>
@@ -473,113 +574,6 @@ const PublicAppointmentDetails = () => {
                 </div>
               </div>
             </div>
-
-            {/* Company & Plant */}
-            <div className="space-y-4">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900 border-b pb-2">
-                Company & Plant Information
-              </h2>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div className="flex items-start gap-3">
-                  <FileText className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm text-gray-500">Company</p>
-                    <p className="font-semibold text-gray-900">
-                      {appointment.company?.companyName || "N/A"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <MapPin className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm text-gray-500">Plant</p>
-                    <p className="font-semibold text-gray-900">
-                      {appointment.plant?.plantName || "N/A"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Meeting */}
-            <div className="space-y-4">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900 border-b pb-2">
-                Meeting Details
-              </h2>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div className="flex items-start gap-3">
-                  <User className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm text-gray-500">Person to Visit</p>
-                    <p className="font-semibold text-gray-900 capitalize">
-                      {appointment.personToVisit?.fullname || "N/A"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <MapPin className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm text-gray-500">Area to Visit</p>
-                    <p className="font-semibold text-gray-900">
-                      {appointment.areaToVisit?.areaName || "N/A"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Purpose */}
-            {appointment.purposeOfVisit && (
-              <div className="space-y-4">
-                <h2 className="text-lg sm:text-xl font-bold text-gray-900 border-b pb-2">
-                  Purpose of Visit
-                </h2>
-                <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200">
-                  <p className="text-gray-700">{appointment.purposeOfVisit}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Visit Status */}
-            {(appointment.checkedInTime || appointment.checkedOutTime) && (
-              <div className="space-y-4">
-                <h2 className="text-lg sm:text-xl font-bold text-gray-900 border-b pb-2">
-                  Visit Status
-                </h2>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  {appointment.checkedInTime && (
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="w-5 h-5 text-green-600 mt-1 flex-shrink-0" />
-                      <div>
-                        <p className="text-sm text-gray-500">Checked In</p>
-                        <p className="font-semibold text-gray-900">
-                          {formatDate(appointment.checkedInTime)} at{" "}
-                          {formatTime(appointment.checkedInTime)}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {appointment.checkedOutTime && (
-                    <div className="flex items-start gap-3">
-                      <XCircle className="w-5 h-5 text-red-600 mt-1 flex-shrink-0" />
-                      <div>
-                        <p className="text-sm text-gray-500">Checked Out</p>
-                        <p className="font-semibold text-gray-900">
-                          {formatDate(appointment.checkedOutTime)} at{" "}
-                          {formatTime(appointment.checkedOutTime)}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* Actions */}
             <div className="space-y-4 pt-4 border-t">
@@ -602,13 +596,13 @@ const PublicAppointmentDetails = () => {
                         : "bg-green-600 text-white hover:bg-green-700 shadow-lg hover:shadow-xl"
                     }`}
                   >
-                    <LogIn className="w-5 h-5" />
+                    <QrCode className="w-5 h-5" />
                     <span>
                       {checkingIn
                         ? "Checking In..."
                         : isCheckedIn
                           ? "Already Checked In"
-                          : "Check In"}
+                          : "Check In (Scan QR)"}
                     </span>
                   </button>
 
@@ -653,6 +647,45 @@ const PublicAppointmentDetails = () => {
           </button>
         </div>
       </div>
+
+      {/* ✅ QR Scanner Modal */}
+      {showQR && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <div className="flex items-center gap-2">
+                <QrCode className="w-5 h-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Scan QR to Check In
+                </h3>
+              </div>
+              <button
+                onClick={closeQRModal}
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5">
+              <div className="text-sm text-gray-600 mb-3">
+                Point your camera at any QR code. After scanning, the system
+                will automatically check you in.
+              </div>
+
+              <div className="rounded-lg border bg-gray-50 p-3">
+                {/* html5-qrcode renders camera here */}
+                <div id={qrRegionId} className="w-full" />
+              </div>
+
+              <div className="mt-4 text-xs text-gray-500">
+                Appointment:{" "}
+                <span className="font-semibold">{appointmentCodeId}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
