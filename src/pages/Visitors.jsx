@@ -50,12 +50,18 @@ const Visitors = () => {
       setLoading(true);
 
       const appointmentsResponse = await appointmentsAPI.getAll({
-        search: searchVisitor || searchPersonToVisit,
+        search: (searchVisitor || searchPersonToVisit || "").trim(),
       });
 
-      const appointmentsData = Array.isArray(appointmentsResponse?.data)
-        ? appointmentsResponse.data
-        : [];
+      // ✅ supports: axios -> { data: { statusCode, data: [...] } }
+      // or direct -> { statusCode, data: [...] }
+      const raw = appointmentsResponse?.data ?? appointmentsResponse;
+      const appointmentsData = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+          ? raw.data
+          : [];
+
       const activeAppointments = appointmentsData.filter(
         (a) => a?.isAppointmentActive === true,
       );
@@ -63,6 +69,19 @@ const Visitors = () => {
       const transformed = activeAppointments.map((appointment, index) => {
         const v0 = appointment?.visitors?.[0];
         const passType = normalizePassType(appointment?.appointmentPassType);
+
+        // ✅ FIX: show real check-in time if available
+        const timeSource =
+          appointment?.checkedInTime || appointment?.appointmentDate;
+
+        const displayTime = timeSource
+          ? new Date(timeSource).toLocaleTimeString("en-IN", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+              timeZone: "Asia/Kolkata",
+            })
+          : "N/A";
 
         return {
           id: appointment.appointmentId || appointment._id || `APP${index + 1}`,
@@ -78,17 +97,9 @@ const Visitors = () => {
             "UNKNOWN",
           purpose: appointment.purposeOfVisit || "N/A",
           passType,
-          checkInTime: appointment?.appointmentDate
-            ? new Date(appointment.appointmentDate).toLocaleTimeString(
-                "en-IN",
-                {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: true,
-                  timeZone: "Asia/Kolkata",
-                },
-              )
-            : "N/A",
+
+          // ✅ now correct
+          checkInTime: displayTime,
         };
       });
 
@@ -100,6 +111,7 @@ const Visitors = () => {
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     loadData();
