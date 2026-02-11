@@ -17,6 +17,7 @@ import {
   Building2,
   BadgeCheck,
   BadgeX,
+  Package, // ✅ FIX: import Package icon
 } from "lucide-react";
 import { toast } from "sonner";
 import { appointmentsAPI } from "../services/api";
@@ -49,15 +50,15 @@ const formatTimeIST = (dateString) => {
   });
 };
 
-// ✅ Appointment date/time: parse as IST wall-time if backend stored ISO from datetime-local
-// If you are sending toISOString() from frontend (recommended), then normal new Date(iso) is fine.
-// We'll handle BOTH safely.
+// ✅ Appointment date/time: handle both cases
+// 1) If backend stores ISO instant correctly, new Date(iso) works
+// 2) If backend stored wall-time ISO with Z incorrectly, fallback to IST wall-time parsing
 const parseAppointmentDate = (isoString) => {
   if (!isoString) return null;
+
   const d = new Date(isoString);
   if (!Number.isNaN(d.getTime())) return d;
 
-  // fallback: strip timezone and treat as IST wall time
   const match = isoString.match(
     /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(\.\d+)?/,
   );
@@ -135,6 +136,37 @@ const getPassBadge = (type) => {
   };
 };
 
+const cap = (s) => {
+  if (!s) return "N/A";
+  return String(s)
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+};
+
+const KV = ({ icon, k, v }) => (
+  <div className="flex items-start gap-3">
+    <div className="mt-0.5">{icon}</div>
+    <div className="min-w-0">
+      <p className="text-xs text-slate-500">{k}</p>
+      <p className="text-sm font-semibold text-slate-900 break-words">{v}</p>
+    </div>
+  </div>
+);
+
+const InfoRow = ({ icon, label, value }) => (
+  <div className="flex items-start gap-3">
+    <div className="mt-0.5">{icon}</div>
+    <div className="min-w-0">
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className="text-sm font-semibold text-slate-900 break-words">
+        {value}
+      </p>
+    </div>
+  </div>
+);
+
 const PublicAppointmentDetails = () => {
   const { appointmentId } = useParams();
   const navigate = useNavigate();
@@ -194,9 +226,7 @@ const PublicAppointmentDetails = () => {
 
       const json = await r.json().catch(() => ({}));
 
-      if (!r.ok) {
-        throw new Error(json?.message || "Failed to check in");
-      }
+      if (!r.ok) throw new Error(json?.message || "Failed to check in");
 
       toast.success(json?.message || "Checked in successfully!");
       await fetchAppointmentDetails();
@@ -227,9 +257,7 @@ const PublicAppointmentDetails = () => {
 
       const json = await r.json().catch(() => ({}));
 
-      if (!r.ok) {
-        throw new Error(json?.message || "Failed to check out");
-      }
+      if (!r.ok) throw new Error(json?.message || "Failed to check out");
 
       toast.success(json?.message || "Checked out successfully!");
       await fetchAppointmentDetails();
@@ -288,7 +316,6 @@ const PublicAppointmentDetails = () => {
   const visitors = Array.isArray(appointment?.visitors)
     ? appointment.visitors
     : [];
-  const mainVisitor = visitors[0] || null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 py-6 sm:py-12 px-4">
@@ -297,9 +324,7 @@ const PublicAppointmentDetails = () => {
         <div className="text-center mb-6 sm:mb-8">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-slate-200 shadow-sm">
             <span className={`w-2 h-2 rounded-full ${pass.dot}`} />
-            <span
-              className={`text-xs font-semibold tracking-wide ${pass.label === "N/A" ? "text-slate-600" : ""}`}
-            >
+            <span className="text-xs font-semibold tracking-wide text-slate-700">
               {pass.label}
             </span>
           </div>
@@ -312,7 +337,6 @@ const PublicAppointmentDetails = () => {
           </p>
         </div>
 
-        {/* Main Card */}
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
           {/* Status banner */}
           <div
@@ -349,7 +373,6 @@ const PublicAppointmentDetails = () => {
             </div>
           </div>
 
-          {/* Content */}
           <div className="p-4 sm:p-6 md:p-8 space-y-8">
             {/* Key summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -437,11 +460,10 @@ const PublicAppointmentDetails = () => {
                       {/* belongings */}
                       <div className="mt-4">
                         <p className="text-sm text-slate-500">Belongings</p>
+
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {(Array.isArray(v.belongings) ? v.belongings : [])
-                            .length === 0 ? (
-                            <span className="text-sm text-slate-700">N/A</span>
-                          ) : (
+                          {Array.isArray(v.belongings) &&
+                          v.belongings.length > 0 ? (
                             v.belongings.map((b) => (
                               <span
                                 key={b._id || b.assetName}
@@ -451,6 +473,8 @@ const PublicAppointmentDetails = () => {
                                 {b.assetName || "N/A"}
                               </span>
                             ))
+                          ) : (
+                            <span className="text-sm text-slate-700">N/A</span>
                           )}
                         </div>
                       </div>
@@ -460,13 +484,12 @@ const PublicAppointmentDetails = () => {
               )}
             </div>
 
-            {/* Appointment & Company details */}
+            {/* Company & Meeting */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <h3 className="text-base font-semibold text-slate-900 mb-4">
                   Appointment Details
                 </h3>
-
                 <div className="space-y-3">
                   <KV
                     icon={<Calendar className="w-4 h-4 text-indigo-600" />}
@@ -495,7 +518,6 @@ const PublicAppointmentDetails = () => {
                 <h3 className="text-base font-semibold text-slate-900 mb-4">
                   Company & Meeting
                 </h3>
-
                 <div className="space-y-3">
                   <KV
                     icon={<Building2 className="w-4 h-4 text-indigo-600" />}
@@ -567,7 +589,6 @@ const PublicAppointmentDetails = () => {
                 </div>
               </div>
 
-              {/* Helpful warning */}
               {!appointment.isAppointmentActive && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 flex gap-3">
                   <AlertTriangle className="w-5 h-5 mt-0.5" />
@@ -640,7 +661,6 @@ const PublicAppointmentDetails = () => {
             </div>
           </div>
 
-          {/* Footer */}
           <div className="bg-slate-50 px-4 sm:px-6 md:px-8 py-5 border-t border-slate-200">
             <p className="text-center text-xs sm:text-sm text-slate-600">
               Please arrive 10 minutes before your scheduled appointment time.
@@ -659,37 +679,6 @@ const PublicAppointmentDetails = () => {
       </div>
     </div>
   );
-};
-
-const KV = ({ icon, k, v }) => (
-  <div className="flex items-start gap-3">
-    <div className="mt-0.5">{icon}</div>
-    <div className="min-w-0">
-      <p className="text-xs text-slate-500">{k}</p>
-      <p className="text-sm font-semibold text-slate-900 break-words">{v}</p>
-    </div>
-  </div>
-);
-
-const InfoRow = ({ icon, label, value }) => (
-  <div className="flex items-start gap-3">
-    <div className="mt-0.5">{icon}</div>
-    <div className="min-w-0">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="text-sm font-semibold text-slate-900 break-words">
-        {value}
-      </p>
-    </div>
-  </div>
-);
-
-const cap = (s) => {
-  if (!s) return "N/A";
-  return String(s)
-    .split(" ")
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
 };
 
 export default PublicAppointmentDetails;
