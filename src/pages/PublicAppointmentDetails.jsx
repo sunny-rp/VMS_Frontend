@@ -12,39 +12,47 @@ import {
   XCircle,
   LogIn,
   LogOut,
-  Package, // ✅ FIX: add this
+  Package, // ✅ FIX: was missing (caused error)
+  ShieldCheck, // ✅ for Access Type
+  Car, // ✅ for Vehicle No
 } from "lucide-react";
 import { toast } from "sonner";
 import { appointmentsAPI } from "../services/api";
 
-// ✅ PassType => UI classes (full strip color)
+// ✅ PassType => UI classes + Access labels
 const PASS_UI = {
   PURPLE: {
+    label: "PURPLE (VIP ACCESS)",
     banner: "bg-purple-100 text-purple-900 border-purple-300",
     badge: "bg-white/70 text-purple-800 border-purple-300",
     dot: "bg-purple-600",
   },
   RED: {
+    label: "RED (RESTRICTED ACCESS)",
     banner: "bg-red-100 text-red-900 border-red-300",
     badge: "bg-white/70 text-red-800 border-red-300",
     dot: "bg-red-600",
   },
   GREEN: {
+    label: "GREEN (PRODUCTION ACCESS)",
     banner: "bg-green-100 text-green-900 border-green-300",
     badge: "bg-white/70 text-green-800 border-green-300",
     dot: "bg-green-600",
   },
   YELLOW: {
+    label: "YELLOW (LIMITED ACCESS)",
     banner: "bg-yellow-100 text-yellow-900 border-yellow-300",
     badge: "bg-white/70 text-yellow-800 border-yellow-300",
     dot: "bg-yellow-500",
   },
   PENDING: {
+    label: "PENDING (WAITING APPROVAL)",
     banner: "bg-gray-100 text-gray-900 border-gray-300",
     badge: "bg-white/70 text-gray-800 border-gray-300",
     dot: "bg-gray-500",
   },
   REJECT: {
+    label: "REJECT (DENIED)",
     banner: "bg-gray-200 text-gray-900 border-gray-300",
     badge: "bg-white/70 text-gray-900 border-gray-300",
     dot: "bg-gray-700",
@@ -70,11 +78,13 @@ const PublicAppointmentDetails = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await appointmentsAPI.getPublicById(appointmentId);
-      setAppointment(data?.data || data);
+
+      const res = await appointmentsAPI.getPublicById(appointmentId);
+      // supports both {data:{...}} or direct object
+      setAppointment(res?.data || res);
     } catch (err) {
       console.error("[PublicAppointmentDetails] fetch error:", err);
-      setError(err.message || "Failed to load appointment details");
+      setError(err?.message || "Failed to load appointment details");
     } finally {
       setLoading(false);
     }
@@ -91,6 +101,7 @@ const PublicAppointmentDetails = () => {
       const API_BASE_URL =
         import.meta.env.VITE_PUBLIC_API_BASE_URL ||
         "http://localhost:5000/api/v1";
+
       const response = await fetch(
         `${API_BASE_URL}/visitor-form/appointments/checkin-visitors/${appointmentId}`,
         {
@@ -110,7 +121,7 @@ const PublicAppointmentDetails = () => {
       await fetchAppointmentDetails();
     } catch (err) {
       console.error("[PublicAppointmentDetails] check-in error:", err);
-      toast.error(err.message || "Failed to check in");
+      toast.error(err?.message || "Failed to check in");
     } finally {
       setCheckingIn(false);
     }
@@ -122,6 +133,7 @@ const PublicAppointmentDetails = () => {
       const API_BASE_URL =
         import.meta.env.VITE_PUBLIC_API_BASE_URL ||
         "http://localhost:5000/api/v1";
+
       const response = await fetch(
         `${API_BASE_URL}/visitor-form/appointments/checkout-visitors/${appointmentId}`,
         {
@@ -141,13 +153,13 @@ const PublicAppointmentDetails = () => {
       await fetchAppointmentDetails();
     } catch (err) {
       console.error("[PublicAppointmentDetails] check-out error:", err);
-      toast.error(err.message || "Failed to check out");
+      toast.error(err?.message || "Failed to check out");
     } finally {
       setCheckingOut(false);
     }
   };
 
-  // ✅ Date handling
+  // ✅ Date handling (show same IST wall time)
   const IST_TZ = "Asia/Kolkata";
 
   const parseAsISTWallTime = (isoString) => {
@@ -160,35 +172,30 @@ const PublicAppointmentDetails = () => {
     return new Date(`${datePart}T${timePart}${msPart}+05:30`);
   };
 
-  const formatISTDateFromDateObj = (dateObj) =>
-    dateObj.toLocaleDateString("en-IN", {
+  const formatISTDate = (isoString) => {
+    const d = parseAsISTWallTime(isoString);
+    if (!d || isNaN(d.getTime())) return "N/A";
+    return d.toLocaleDateString("en-IN", {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
       timeZone: IST_TZ,
     });
+  };
 
-  const formatISTTimeFromDateObj = (dateObj) =>
-    dateObj.toLocaleTimeString("en-IN", {
+  const formatISTTime = (isoString) => {
+    const d = parseAsISTWallTime(isoString);
+    if (!d || isNaN(d.getTime())) return "N/A";
+    return d.toLocaleTimeString("en-IN", {
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
       timeZone: IST_TZ,
     });
-
-  const formatAppointmentDate = (isoString) => {
-    const d = parseAsISTWallTime(isoString);
-    if (!d || isNaN(d.getTime())) return "N/A";
-    return formatISTDateFromDateObj(d);
   };
 
-  const formatAppointmentTime = (isoString) => {
-    const d = parseAsISTWallTime(isoString);
-    if (!d || isNaN(d.getTime())) return "N/A";
-    return formatISTTimeFromDateObj(d);
-  };
-
+  // ✅ Checkin/out should be real instants
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     const date = new Date(dateString);
@@ -260,12 +267,12 @@ const PublicAppointmentDetails = () => {
   const isCheckedIn = !!appointment?.checkedInTime;
   const isCheckedOut = !!appointment?.checkedOutTime;
 
-  // ✅ Banner color rule:
-  // - If inactive: grey banner
-  // - If active: FULL STRIP uses appointmentPassType color
+  // ✅ FULL STRIP COLOR: if active -> pass color, else grey
   const bannerClass = appointment?.isAppointmentActive
     ? passUI.banner
     : "bg-gray-100 text-gray-900 border-gray-300";
+
+  const actionsBlocked = passType === "REJECT";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-6 sm:py-12 px-4">
@@ -280,8 +287,8 @@ const PublicAppointmentDetails = () => {
         </div>
 
         <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl overflow-hidden border border-gray-200">
-          {/* ✅ STATUS STRIP (FULL COLOR) */}
-          <div className={`p-4 sm:p-6 border-b border ${bannerClass}`}>
+          {/* ✅ FULL COLORED STRIP */}
+          <div className={`w-full p-4 sm:p-6 border-b border ${bannerClass}`}>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 {appointment?.isAppointmentActive ? (
@@ -289,7 +296,6 @@ const PublicAppointmentDetails = () => {
                 ) : (
                   <XCircle className="w-5 h-5" />
                 )}
-
                 <span className="text-base sm:text-lg font-semibold">
                   {appointment?.isAppointmentActive
                     ? "Active Appointment"
@@ -297,26 +303,25 @@ const PublicAppointmentDetails = () => {
                 </span>
               </div>
 
-              {/* PassType badge */}
+              {/* ✅ Badge shows Access label */}
               <span
                 className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-sm font-semibold ${passUI.badge}`}
               >
                 <span className={`w-2 h-2 rounded-full ${passUI.dot}`} />
-                {passType}
+                {passUI.label}
               </span>
             </div>
           </div>
 
-          {/* Content */}
           <div className="p-4 sm:p-6 md:p-8 space-y-6">
-            {/* Visitor Information */}
+            {/* Visitor Info */}
             <div className="space-y-4">
               <h2 className="text-lg sm:text-xl font-bold text-gray-900 border-b pb-2">
                 Visitor Information
               </h2>
 
               {appointment.visitors?.length > 0 ? (
-                appointment.visitors.map((visitor, index) => {
+                appointment.visitors.map((visitor, idx) => {
                   const belongings = Array.isArray(visitor?.belongings)
                     ? visitor.belongings
                         .map((b) => (typeof b === "string" ? b : b?.assetName))
@@ -325,11 +330,11 @@ const PublicAppointmentDetails = () => {
 
                   return (
                     <div
-                      key={visitor._id || index}
-                      className="mb-4 p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200"
+                      key={visitor._id || idx}
+                      className="p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200"
                     >
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                        <div className="flex items-start space-x-3">
+                        <div className="flex items-start gap-3">
                           <User className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
                           <div className="min-w-0">
                             <p className="text-sm text-gray-500">
@@ -341,7 +346,7 @@ const PublicAppointmentDetails = () => {
                           </div>
                         </div>
 
-                        <div className="flex items-start space-x-3">
+                        <div className="flex items-start gap-3">
                           <FileText className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
                           <div className="min-w-0">
                             <p className="text-sm text-gray-500">Company</p>
@@ -351,7 +356,7 @@ const PublicAppointmentDetails = () => {
                           </div>
                         </div>
 
-                        <div className="flex items-start space-x-3">
+                        <div className="flex items-start gap-3">
                           <User className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
                           <div className="min-w-0">
                             <p className="text-sm text-gray-500">Mobile</p>
@@ -362,7 +367,7 @@ const PublicAppointmentDetails = () => {
                         </div>
 
                         {visitor.email ? (
-                          <div className="flex items-start space-x-3">
+                          <div className="flex items-start gap-3">
                             <FileText className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
                             <div className="min-w-0">
                               <p className="text-sm text-gray-500">Email</p>
@@ -374,8 +379,8 @@ const PublicAppointmentDetails = () => {
                         ) : null}
 
                         {visitor.vehicleNo ? (
-                          <div className="flex items-start space-x-3 sm:col-span-2">
-                            <MapPin className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
+                          <div className="flex items-start gap-3 sm:col-span-2">
+                            <Car className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
                             <div className="min-w-0">
                               <p className="text-sm text-gray-500">
                                 Vehicle No
@@ -416,68 +421,81 @@ const PublicAppointmentDetails = () => {
               </h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div className="flex items-start space-x-3">
+                <div className="flex items-start gap-3">
                   <Calendar className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
-                  <div className="min-w-0">
+                  <div>
                     <p className="text-sm text-gray-500">Appointment Date</p>
-                    <p className="font-semibold text-gray-900 break-words">
-                      {formatAppointmentDate(appointment.appointmentDate)}
+                    <p className="font-semibold text-gray-900">
+                      {formatISTDate(appointment.appointmentDate)}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start space-x-3">
+                <div className="flex items-start gap-3">
                   <Clock className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
-                  <div className="min-w-0">
+                  <div>
                     <p className="text-sm text-gray-500">Appointment Time</p>
                     <p className="font-semibold text-gray-900">
-                      {formatAppointmentTime(appointment.appointmentDate)}
+                      {formatISTTime(appointment.appointmentDate)}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start space-x-3">
+                <div className="flex items-start gap-3">
                   <Calendar className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
-                  <div className="min-w-0">
+                  <div>
                     <p className="text-sm text-gray-500">Valid Till</p>
-                    <p className="font-semibold text-gray-900 break-words">
-                      {formatAppointmentDate(appointment.appointmentValidTill)}
+                    <p className="font-semibold text-gray-900">
+                      {formatISTDate(appointment.appointmentValidTill)}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start space-x-3">
+                <div className="flex items-start gap-3">
                   <FileText className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
-                  <div className="min-w-0">
+                  <div>
                     <p className="text-sm text-gray-500">Appointment ID</p>
                     <p className="font-semibold text-gray-900 break-all">
                       {appointment.appointmentId || "N/A"}
                     </p>
                   </div>
                 </div>
+
+                {/* ✅ Access Type shown here also */}
+                <div className="flex items-start gap-3 sm:col-span-2">
+                  <ShieldCheck className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm text-gray-500">Type of Access</p>
+                    <p className="font-semibold text-gray-900">
+                      {passUI.label}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Company & Plant Information */}
+            {/* Company & Plant */}
             <div className="space-y-4">
               <h2 className="text-lg sm:text-xl font-bold text-gray-900 border-b pb-2">
                 Company & Plant Information
               </h2>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div className="flex items-start space-x-3">
+                <div className="flex items-start gap-3">
                   <FileText className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
-                  <div className="min-w-0">
+                  <div>
                     <p className="text-sm text-gray-500">Company</p>
-                    <p className="font-semibold text-gray-900 break-words">
+                    <p className="font-semibold text-gray-900">
                       {appointment.company?.companyName || "N/A"}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-start space-x-3">
+
+                <div className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
-                  <div className="min-w-0">
+                  <div>
                     <p className="text-sm text-gray-500">Plant</p>
-                    <p className="font-semibold text-gray-900 break-words">
+                    <p className="font-semibold text-gray-900">
                       {appointment.plant?.plantName || "N/A"}
                     </p>
                   </div>
@@ -485,26 +503,28 @@ const PublicAppointmentDetails = () => {
               </div>
             </div>
 
-            {/* Meeting Details */}
+            {/* Meeting */}
             <div className="space-y-4">
               <h2 className="text-lg sm:text-xl font-bold text-gray-900 border-b pb-2">
                 Meeting Details
               </h2>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div className="flex items-start space-x-3">
+                <div className="flex items-start gap-3">
                   <User className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
-                  <div className="min-w-0">
+                  <div>
                     <p className="text-sm text-gray-500">Person to Visit</p>
-                    <p className="font-semibold text-gray-900 capitalize break-words">
+                    <p className="font-semibold text-gray-900 capitalize">
                       {appointment.personToVisit?.fullname || "N/A"}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-start space-x-3">
+
+                <div className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
-                  <div className="min-w-0">
+                  <div>
                     <p className="text-sm text-gray-500">Area to Visit</p>
-                    <p className="font-semibold text-gray-900 break-words">
+                    <p className="font-semibold text-gray-900">
                       {appointment.areaToVisit?.areaName || "N/A"}
                     </p>
                   </div>
@@ -519,38 +539,38 @@ const PublicAppointmentDetails = () => {
                   Purpose of Visit
                 </h2>
                 <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200">
-                  <p className="text-gray-700 leading-relaxed break-words">
-                    {appointment.purposeOfVisit}
-                  </p>
+                  <p className="text-gray-700">{appointment.purposeOfVisit}</p>
                 </div>
               </div>
             )}
 
-            {/* Check-in/out status */}
+            {/* Visit Status */}
             {(appointment.checkedInTime || appointment.checkedOutTime) && (
               <div className="space-y-4">
                 <h2 className="text-lg sm:text-xl font-bold text-gray-900 border-b pb-2">
                   Visit Status
                 </h2>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   {appointment.checkedInTime && (
-                    <div className="flex items-start space-x-3">
+                    <div className="flex items-start gap-3">
                       <CheckCircle className="w-5 h-5 text-green-600 mt-1 flex-shrink-0" />
-                      <div className="min-w-0">
+                      <div>
                         <p className="text-sm text-gray-500">Checked In</p>
-                        <p className="font-semibold text-gray-900 break-words">
+                        <p className="font-semibold text-gray-900">
                           {formatDate(appointment.checkedInTime)} at{" "}
                           {formatTime(appointment.checkedInTime)}
                         </p>
                       </div>
                     </div>
                   )}
+
                   {appointment.checkedOutTime && (
-                    <div className="flex items-start space-x-3">
+                    <div className="flex items-start gap-3">
                       <XCircle className="w-5 h-5 text-red-600 mt-1 flex-shrink-0" />
-                      <div className="min-w-0">
+                      <div>
                         <p className="text-sm text-gray-500">Checked Out</p>
-                        <p className="font-semibold text-gray-900 break-words">
+                        <p className="font-semibold text-gray-900">
                           {formatDate(appointment.checkedOutTime)} at{" "}
                           {formatTime(appointment.checkedOutTime)}
                         </p>
@@ -566,51 +586,57 @@ const PublicAppointmentDetails = () => {
               <h2 className="text-lg sm:text-xl font-bold text-gray-900">
                 Actions
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <button
-                  onClick={handleCheckIn}
-                  disabled={isCheckedIn || checkingIn}
-                  className={`w-full flex items-center justify-center space-x-2 px-4 sm:px-6 py-3 rounded-lg font-medium transition-all ${
-                    isCheckedIn
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-green-600 text-white hover:bg-green-700 shadow-lg hover:shadow-xl"
-                  }`}
-                >
-                  <LogIn className="w-5 h-5" />
-                  <span>
-                    {checkingIn
-                      ? "Checking In..."
-                      : isCheckedIn
-                        ? "Already Checked In"
-                        : "Check In"}
-                  </span>
-                </button>
 
-                <button
-                  onClick={handleCheckOut}
-                  disabled={!isCheckedIn || isCheckedOut || checkingOut}
-                  className={`w-full flex items-center justify-center space-x-2 px-4 sm:px-6 py-3 rounded-lg font-medium transition-all ${
-                    !isCheckedIn || isCheckedOut
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-red-600 text-white hover:bg-red-700 shadow-lg hover:shadow-xl"
-                  }`}
-                >
-                  <LogOut className="w-5 h-5" />
-                  <span>
-                    {checkingOut
-                      ? "Checking Out..."
-                      : isCheckedOut
-                        ? "Already Checked Out"
-                        : !isCheckedIn
-                          ? "Check In First"
-                          : "Check Out"}
-                  </span>
-                </button>
-              </div>
+              {actionsBlocked ? (
+                <div className="p-4 rounded-lg bg-gray-100 border border-gray-200 text-gray-700 font-medium">
+                  This appointment is <b>REJECTED</b>. Actions are disabled.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <button
+                    onClick={handleCheckIn}
+                    disabled={isCheckedIn || checkingIn}
+                    className={`w-full flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-lg font-medium transition-all ${
+                      isCheckedIn
+                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        : "bg-green-600 text-white hover:bg-green-700 shadow-lg hover:shadow-xl"
+                    }`}
+                  >
+                    <LogIn className="w-5 h-5" />
+                    <span>
+                      {checkingIn
+                        ? "Checking In..."
+                        : isCheckedIn
+                          ? "Already Checked In"
+                          : "Check In"}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={handleCheckOut}
+                    disabled={!isCheckedIn || isCheckedOut || checkingOut}
+                    className={`w-full flex items-center justify-center gap-2 px-4 sm:px-6 py-3 rounded-lg font-medium transition-all ${
+                      !isCheckedIn || isCheckedOut
+                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        : "bg-red-600 text-white hover:bg-red-700 shadow-lg hover:shadow-xl"
+                    }`}
+                  >
+                    <LogOut className="w-5 h-5" />
+                    <span>
+                      {checkingOut
+                        ? "Checking Out..."
+                        : isCheckedOut
+                          ? "Already Checked Out"
+                          : !isCheckedIn
+                            ? "Check In First"
+                            : "Check Out"}
+                    </span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Footer */}
           <div className="bg-gray-50 px-4 sm:px-6 md:px-8 py-4 sm:py-6 border-t border-gray-200">
             <p className="text-center text-xs sm:text-sm text-gray-600">
               Please arrive 10 minutes before your scheduled appointment time.
