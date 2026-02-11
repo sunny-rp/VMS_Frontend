@@ -7,22 +7,22 @@ import { Plus, Minus, User, Package, Calendar, Loader2 } from "lucide-react"
 import { plantsAPI, departmentsAPI, usersAPI, appointmentsAPI, companiesAPI } from "../services/api"
 import { toast } from "sonner"
 
-const VisitorForm = () => {
-  const [searchParams] = useSearchParams()
-  const plantIdFromUrl = searchParams.get("plantId")
-  const companyIdFromUrl = searchParams.get("companyId")
+const VisitorForm = ({ onSuccess } = {}) => {
+  const [searchParams] = useSearchParams();
+  const plantIdFromUrl = searchParams.get("plantId");
+  const companyIdFromUrl = searchParams.get("companyId");
 
-  const [plants, setPlants] = useState([])
-  const [departments, setDepartments] = useState([])
-  const [users, setUsers] = useState([])
-  const [companies, setCompanies] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [success, setSuccess] = useState(false)
-  const [successData, setSuccessData] = useState(null)
-  const [error, setError] = useState("")
-  const [departmentAutoFilled, setDepartmentAutoFilled] = useState(false)
-  const [lastAutoFilledPerson, setLastAutoFilledPerson] = useState("")
+  const [plants, setPlants] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [successData, setSuccessData] = useState(null);
+  const [error, setError] = useState("");
+  const [departmentAutoFilled, setDepartmentAutoFilled] = useState(false);
+  const [lastAutoFilledPerson, setLastAutoFilledPerson] = useState("");
 
   const {
     register,
@@ -51,7 +51,7 @@ const VisitorForm = () => {
       ],
       honeypot: "",
     },
-  })
+  });
 
   const {
     fields: visitorFields,
@@ -60,43 +60,47 @@ const VisitorForm = () => {
   } = useFieldArray({
     control,
     name: "visitors",
-  })
+  });
 
-  const watchedPersonToVisit = watch("personToVisit")
+  const watchedPersonToVisit = watch("personToVisit");
 
   // Auto-fill department when person to visit changes
   useEffect(() => {
     if (!watchedPersonToVisit || users.length === 0) {
       if (!watchedPersonToVisit && departmentAutoFilled) {
-        setValue("department", "", { shouldValidate: true, shouldDirty: true })
-        setDepartmentAutoFilled(false)
-        setLastAutoFilledPerson("")
+        setValue("department", "", { shouldValidate: true, shouldDirty: true });
+        setDepartmentAutoFilled(false);
+        setLastAutoFilledPerson("");
       }
-      return
+      return;
     }
 
     // If same person already auto-filled, skip
     if (departmentAutoFilled && watchedPersonToVisit === lastAutoFilledPerson) {
-      return
+      return;
     }
 
-    const selectedUser = users.find((user) => user._id === watchedPersonToVisit)
-    if (!selectedUser) return
+    const selectedUser = users.find(
+      (user) => user._id === watchedPersonToVisit,
+    );
+    if (!selectedUser) return;
 
     // Extract the department ID from the user object (could be populated object or string)
-    const userDept = selectedUser.department
+    const userDept = selectedUser.department;
     const userDeptId =
       userDept?._id ||
       selectedUser.departmentId ||
       selectedUser.dept?._id ||
       selectedUser.deptId ||
-      (typeof userDept === "string" ? userDept : "")
+      (typeof userDept === "string" ? userDept : "");
 
     // Strategy 1: Match by user's department _id against departments list
-    let matchedDept = null
+    let matchedDept = null;
     if (userDeptId) {
-      const deptIdStr = String(userDeptId)
-      matchedDept = departments.find((d) => String(d._id || d.id) === deptIdStr)
+      const deptIdStr = String(userDeptId);
+      matchedDept = departments.find(
+        (d) => String(d._id || d.id) === deptIdStr,
+      );
     }
 
     // Strategy 2: Find the department where this user is the headOfDepartment
@@ -104,8 +108,8 @@ const VisitorForm = () => {
       matchedDept = departments.find(
         (d) =>
           d.headOfDepartment?._id === watchedPersonToVisit ||
-          String(d.headOfDepartment) === watchedPersonToVisit
-      )
+          String(d.headOfDepartment) === watchedPersonToVisit,
+      );
     }
 
     // Strategy 3: Find the department where departmentCreator matches
@@ -113,210 +117,242 @@ const VisitorForm = () => {
       matchedDept = departments.find(
         (d) =>
           d.departmentCreator?._id === watchedPersonToVisit ||
-          String(d.departmentCreator) === watchedPersonToVisit
-      )
+          String(d.departmentCreator) === watchedPersonToVisit,
+      );
     }
 
     if (matchedDept) {
-      const matchedId = String(matchedDept._id || matchedDept.id)
-      setValue("department", matchedId, { shouldValidate: true, shouldDirty: true })
-      setDepartmentAutoFilled(true)
-      setLastAutoFilledPerson(watchedPersonToVisit)
+      const matchedId = String(matchedDept._id || matchedDept.id);
+      setValue("department", matchedId, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+      setDepartmentAutoFilled(true);
+      setLastAutoFilledPerson(watchedPersonToVisit);
       toast.success(
-        `Department "${(matchedDept.departmentName || matchedDept.name || "").toUpperCase()}" auto-selected`
-      )
+        `Department "${(matchedDept.departmentName || matchedDept.name || "").toUpperCase()}" auto-selected`,
+      );
     } else if (userDeptId) {
       // Department not in the plant's list - add it dynamically from user data
-      const newDeptId = String(userDeptId)
-      const newDeptName = userDept?.departmentName || userDept?.name || "Unknown Department"
+      const newDeptId = String(userDeptId);
+      const newDeptName =
+        userDept?.departmentName || userDept?.name || "Unknown Department";
       setDepartments((prev) => {
         // Avoid duplicates
-        if (prev.some((d) => String(d._id || d.id) === newDeptId)) return prev
-        return [...prev, { _id: newDeptId, departmentName: newDeptName }]
-      })
+        if (prev.some((d) => String(d._id || d.id) === newDeptId)) return prev;
+        return [...prev, { _id: newDeptId, departmentName: newDeptName }];
+      });
       setTimeout(() => {
-        setValue("department", newDeptId, { shouldValidate: true, shouldDirty: true })
-      }, 0)
-      setDepartmentAutoFilled(true)
-      setLastAutoFilledPerson(watchedPersonToVisit)
-      toast.success(
-        `Department "${newDeptName.toUpperCase()}" auto-selected`
-      )
+        setValue("department", newDeptId, {
+          shouldValidate: true,
+          shouldDirty: true,
+        });
+      }, 0);
+      setDepartmentAutoFilled(true);
+      setLastAutoFilledPerson(watchedPersonToVisit);
+      toast.success(`Department "${newDeptName.toUpperCase()}" auto-selected`);
     }
-  }, [watchedPersonToVisit, users, departments, setValue, departmentAutoFilled, lastAutoFilledPerson])
+  }, [
+    watchedPersonToVisit,
+    users,
+    departments,
+    setValue,
+    departmentAutoFilled,
+    lastAutoFilledPerson,
+  ]);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        setLoading(true)
-        setError("")
+        setLoading(true);
+        setError("");
 
         const dataPromises = [
           plantsAPI.getAll(companyIdFromUrl),
           departmentsAPI.getAll(plantIdFromUrl),
           usersAPI.getAll(plantIdFromUrl),
-        ]
+        ];
 
         const companiesPromise = companiesAPI.getAll(true).catch((err) => {
-          console.warn("Companies API failed, continuing without company data:", err)
-          return { data: { data: [] } }
-        })
+          console.warn(
+            "Companies API failed, continuing without company data:",
+            err,
+          );
+          return { data: { data: [] } };
+        });
 
-        const [plantsRes, departmentsRes, usersRes, companiesRes] = await Promise.all([
-          ...dataPromises,
-          companiesPromise,
-        ])
+        const [plantsRes, departmentsRes, usersRes, companiesRes] =
+          await Promise.all([...dataPromises, companiesPromise]);
 
         const plantsData = Array.isArray(plantsRes?.data?.data)
           ? plantsRes.data.data
           : Array.isArray(plantsRes?.data)
             ? plantsRes.data
-            : []
+            : [];
 
         const departmentsData = Array.isArray(departmentsRes?.data?.data)
           ? departmentsRes.data.data
           : Array.isArray(departmentsRes?.data)
             ? departmentsRes.data
-            : []
+            : [];
 
         const usersData = Array.isArray(usersRes?.data?.data)
           ? usersRes.data.data
           : Array.isArray(usersRes?.data)
             ? usersRes.data
-            : []
+            : [];
 
         const companiesData = Array.isArray(companiesRes?.data?.data)
           ? companiesRes.data.data
           : Array.isArray(companiesRes?.data)
             ? companiesRes.data
-            : []
+            : [];
 
-        setPlants(plantsData)
-        setDepartments(departmentsData)
-        setUsers(usersData)
-        setCompanies(companiesData)
+        setPlants(plantsData);
+        setDepartments(departmentsData);
+        setUsers(usersData);
+        setCompanies(companiesData);
 
         if (plantIdFromUrl && plantsData.length > 0) {
-          const matchingPlant = plantsData.find((p) => p._id === plantIdFromUrl || p.id === plantIdFromUrl)
+          const matchingPlant = plantsData.find(
+            (p) => p._id === plantIdFromUrl || p.id === plantIdFromUrl,
+          );
           if (matchingPlant) {
-            setValue("plant", matchingPlant._id || matchingPlant.id)
-            toast.success(`Plant "${matchingPlant.plantName || matchingPlant.name}" pre-selected`)
+            setValue("plant", matchingPlant._id || matchingPlant.id);
+            toast.success(
+              `Plant "${matchingPlant.plantName || matchingPlant.name}" pre-selected`,
+            );
           }
         }
 
         if (companyIdFromUrl && companiesData.length > 0) {
-          const matchingCompany = companiesData.find((c) => c._id === companyIdFromUrl || c.id === companyIdFromUrl)
+          const matchingCompany = companiesData.find(
+            (c) => c._id === companyIdFromUrl || c.id === companyIdFromUrl,
+          );
           if (matchingCompany) {
-            setValue("visitors.0.company", matchingCompany.companyName || matchingCompany.name || companyIdFromUrl)
-            toast.success(`Company "${matchingCompany.companyName || matchingCompany.name}" pre-selected`)
+            setValue(
+              "visitors.0.company",
+              matchingCompany.companyName ||
+                matchingCompany.name ||
+                companyIdFromUrl,
+            );
+            toast.success(
+              `Company "${matchingCompany.companyName || matchingCompany.name}" pre-selected`,
+            );
           }
         }
 
-        if (plantsData.length === 0 && departmentsData.length === 0 && usersData.length === 0) {
-          toast.error("No form data available. Please contact your administrator.")
+        if (
+          plantsData.length === 0 &&
+          departmentsData.length === 0 &&
+          usersData.length === 0
+        ) {
+          toast.error(
+            "No form data available. Please contact your administrator.",
+          );
         }
       } catch (err) {
-        console.error("Error loading form data:", err)
-        toast.error("Failed to load some form data. Please try refreshing.")
-        setError("Some form data could not be loaded")
+        console.error("Error loading form data:", err);
+        toast.error("Failed to load some form data. Please try refreshing.");
+        setError("Some form data could not be loaded");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    loadData()
-  }, [plantIdFromUrl, companyIdFromUrl, setValue])
+    loadData();
+  }, [plantIdFromUrl, companyIdFromUrl, setValue]);
 
   const isEmail = (input) => {
-    if (!input) return true
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(input)
-  }
+    if (!input) return true;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(input);
+  };
 
   const isPhoneNumber = (input) => {
-    if (!input) return false
-    const phoneRegex = /^\d{10,15}$/
-    return phoneRegex.test(input.replace(/\s/g, ""))
-  }
+    if (!input) return false;
+    const phoneRegex = /^\d{10,15}$/;
+    return phoneRegex.test(input.replace(/\s/g, ""));
+  };
 
   const onSubmit = async (data) => {
-    setError("")
+    setError("");
 
     if (!data.plant) {
-      setError("Plant is required")
-      return
+      setError("Plant is required");
+      return;
     }
     if (!data.personToVisit) {
-      setError("Person to visit is required")
-      return
+      setError("Person to visit is required");
+      return;
     }
     if (!data.department) {
-      setError("Department is required")
-      return
+      setError("Department is required");
+      return;
     }
     if (!data.appointmentDate) {
-      setError("Appointment date is required")
-      return
+      setError("Appointment date is required");
+      return;
     }
     if (!data.appointmentValidTill) {
-      setError("Valid till date is required")
-      return
+      setError("Valid till date is required");
+      return;
     }
     if (!data.purposeOfVisit) {
-      setError("Purpose of visit is required")
-      return
+      setError("Purpose of visit is required");
+      return;
     }
 
     if (!data.visitors || data.visitors.length === 0) {
-      setError("At least one visitor is required")
-      return
+      setError("At least one visitor is required");
+      return;
     }
 
     for (let i = 0; i < data.visitors.length; i++) {
-      const visitor = data.visitors[i]
+      const visitor = data.visitors[i];
       if (!visitor.fullname?.trim()) {
-        setError(`Visitor ${i + 1}: Full name is required`)
-        return
+        setError(`Visitor ${i + 1}: Full name is required`);
+        return;
       }
       if (!visitor.mobile?.trim()) {
-        setError(`Visitor ${i + 1}: WhatsApp number is required`)
-        return
+        setError(`Visitor ${i + 1}: WhatsApp number is required`);
+        return;
       }
       if (!isPhoneNumber(visitor.mobile)) {
-        setError(`Visitor ${i + 1}: WhatsApp must be 10-15 digits`)
-        return
+        setError(`Visitor ${i + 1}: WhatsApp must be 10-15 digits`);
+        return;
       }
       if (visitor.email && !isEmail(visitor.email)) {
-        setError(`Visitor ${i + 1}: Invalid email format`)
-        return
+        setError(`Visitor ${i + 1}: Invalid email format`);
+        return;
       }
       if (!visitor.company?.trim()) {
-        setError(`Visitor ${i + 1}: Company is required`)
-        return
+        setError(`Visitor ${i + 1}: Company is required`);
+        return;
       }
     }
 
-    const appointmentDate = new Date(data.appointmentDate)
-    const validTillDate = new Date(data.appointmentValidTill)
+    const appointmentDate = new Date(data.appointmentDate);
+    const validTillDate = new Date(data.appointmentValidTill);
 
     if (validTillDate < appointmentDate) {
-      setError("Valid till date must be after appointment date")
-      return
+      setError("Valid till date must be after appointment date");
+      return;
     }
 
-    const daysDiff = (validTillDate - appointmentDate) / (1000 * 60 * 60 * 24)
+    const daysDiff = (validTillDate - appointmentDate) / (1000 * 60 * 60 * 24);
     if (daysDiff > 7) {
-      setError("Valid till date must be within 7 days of appointment date")
-      return
+      setError("Valid till date must be within 7 days of appointment date");
+      return;
     }
 
     if (data.honeypot) {
-      setError("Bot detected")
-      return
+      setError("Bot detected");
+      return;
     }
 
     try {
-      setSubmitting(true)
+      setSubmitting(true);
 
       const appointmentData = {
         plant: data.plant,
@@ -332,34 +368,37 @@ const VisitorForm = () => {
           email: visitor.email?.trim() || "",
           belongings:
             visitor.belongings
-              ?.filter((b) => b.assetName?.trim())
+              ?.filter((b) => b.assetName?.trim() || b.vehicleNumber?.trim())
               .map((b) => ({
-                assetName: b.assetName.trim(),
+                assetName: b.assetName?.trim() || "",
+                vehicleNumber: b.vehicleNumber?.trim() || "",
               })) || [],
         })),
-      }
+      };
 
-      const response = await appointmentsAPI.create(appointmentData)
-      setSuccessData(response.data)
-      setSuccess(true)
+      const response = await appointmentsAPI.create(appointmentData);
+      setSuccessData(response.data);
+      setSuccess(true);
+
+      onSuccess?.(response.data);
     } catch (err) {
-      console.error("Error creating appointment:", err)
-      setError("Failed to create appointment. Please try again.")
+      console.error("Error creating appointment:", err);
+      setError("Failed to create appointment. Please try again.");
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   const handlePrint = () => {
-    window.print()
-  }
+    window.print();
+  };
 
   const handleBackToForm = () => {
-    setSuccess(false)
-    setSuccessData(null)
-    setDepartmentAutoFilled(false)
-    reset()
-  }
+    setSuccess(false);
+    setSuccessData(null);
+    setDepartmentAutoFilled(false);
+    reset();
+  };
 
   if (loading) {
     return (
@@ -368,11 +407,13 @@ const VisitorForm = () => {
           <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
           <p className="text-sm text-gray-600">Loading form...</p>
           {(plantIdFromUrl || companyIdFromUrl) && (
-            <p className="text-xs text-gray-500">Preparing pre-filled data...</p>
+            <p className="text-xs text-gray-500">
+              Preparing pre-filled data...
+            </p>
           )}
         </div>
       </div>
-    )
+    );
   }
 
   if (success && successData) {
@@ -382,16 +423,28 @@ const VisitorForm = () => {
           <div className="bg-white rounded-lg shadow-lg p-8">
             <div className="text-center">
               <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                <svg
+                  className="w-10 h-10 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
                 </svg>
               </div>
-              <h1 className="text-3xl font-bold text-gray-900">Appointment Created Successfully!</h1>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Appointment Created Successfully!
+              </h1>
             </div>
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -399,8 +452,12 @@ const VisitorForm = () => {
       <div className="max-w-4xl mx-auto px-4">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Visitor Registration Form</h1>
-            <p className="text-gray-600">Please fill out the form below to schedule your visit</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              Visitor Registration Form
+            </h1>
+            <p className="text-gray-600">
+              Please fill out the form below to schedule your visit
+            </p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
@@ -412,7 +469,11 @@ const VisitorForm = () => {
               autoComplete="off"
             />
 
-            {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">{error}</div>}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                {error}
+              </div>
+            )}
 
             <div className="bg-gray-50 rounded-lg p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
@@ -422,25 +483,38 @@ const VisitorForm = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Plant *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Plant *
+                  </label>
                   <select
                     {...register("plant", { required: "Plant is required" })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Plant</option>
                     {plants.map((plant) => (
-                      <option key={plant._id || plant.id || plant.plantName} value={plant._id || plant.id}>
+                      <option
+                        key={plant._id || plant.id || plant.plantName}
+                        value={plant._id || plant.id}
+                      >
                         {(plant.plantName || plant.name || "").toUpperCase()}
                       </option>
                     ))}
                   </select>
-                  {errors.plant && <p className="text-red-500 text-sm mt-1">{errors.plant.message}</p>}
+                  {errors.plant && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.plant.message}
+                    </p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Person to Visit *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Person to Visit *
+                  </label>
                   <select
-                    {...register("personToVisit", { required: "Person to visit is required" })}
+                    {...register("personToVisit", {
+                      required: "Person to visit is required",
+                    })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Person</option>
@@ -450,35 +524,54 @@ const VisitorForm = () => {
                       </option>
                     ))}
                   </select>
-                  {errors.personToVisit && <p className="text-red-500 text-sm mt-1">{errors.personToVisit.message}</p>}
+                  {errors.personToVisit && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.personToVisit.message}
+                    </p>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Department *
                     {departmentAutoFilled && (
-                      <span className="ml-2 text-xs font-normal text-green-600">(Auto-filled)</span>
+                      <span className="ml-2 text-xs font-normal text-green-600">
+                        (Auto-filled)
+                      </span>
                     )}
                   </label>
                   <select
-                    {...register("department", { required: "Department is required" })}
+                    {...register("department", {
+                      required: "Department is required",
+                    })}
                     disabled={departmentAutoFilled}
                     className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      departmentAutoFilled ? "bg-gray-100 text-gray-600 cursor-not-allowed" : ""
+                      departmentAutoFilled
+                        ? "bg-gray-100 text-gray-600 cursor-not-allowed"
+                        : ""
                     }`}
                   >
                     <option value="">Select Department</option>
                     {departments.map((dept) => (
-                      <option key={String(dept._id || dept.id || dept.departmentName)} value={String(dept._id || dept.id)}>
+                      <option
+                        key={String(dept._id || dept.id || dept.departmentName)}
+                        value={String(dept._id || dept.id)}
+                      >
                         {(dept.departmentName || dept.name || "").toUpperCase()}
                       </option>
                     ))}
                   </select>
-                  {errors.department && <p className="text-red-500 text-sm mt-1">{errors.department.message}</p>}
+                  {errors.department && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.department.message}
+                    </p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Appointment Date *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Appointment Date *
+                  </label>
                   <input
                     {...register("appointmentDate")}
                     type="datetime-local"
@@ -487,7 +580,9 @@ const VisitorForm = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Valid Till *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Valid Till *
+                  </label>
                   <input
                     {...register("appointmentValidTill")}
                     type="datetime-local"
@@ -496,7 +591,9 @@ const VisitorForm = () => {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Purpose of Visit *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Purpose of Visit *
+                  </label>
                   <select
                     {...register("purposeOfVisit")}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -569,8 +666,8 @@ const VisitorForm = () => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
 const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRemove }) => {
   const {
@@ -603,7 +700,9 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div className="sm:col-span-2 sm:grid sm:grid-cols-2 sm:gap-4 space-y-4 sm:space-y-0">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">WhatsApp Number *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              WhatsApp Number *
+            </label>
             <input
               {...register(`visitors.${visitorIndex}.mobile`)}
               type="tel"
@@ -613,7 +712,9 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Full Name *
+            </label>
             <input
               {...register(`visitors.${visitorIndex}.fullname`)}
               type="text"
@@ -625,7 +726,9 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
 
         <div className="sm:col-span-2 sm:grid sm:grid-cols-2 sm:gap-4 space-y-4 sm:space-y-0">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Company *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Company *
+            </label>
             <input
               {...register(`visitors.${visitorIndex}.company`, {
                 required: "Company is required",
@@ -635,12 +738,16 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
               placeholder="Enter company name"
             />
             {errors?.visitors?.[visitorIndex]?.company && (
-              <p className="text-red-500 text-xs mt-1">{errors.visitors[visitorIndex].company.message}</p>
+              <p className="text-red-500 text-xs mt-1">
+                {errors.visitors[visitorIndex].company.message}
+              </p>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Email
+            </label>
             <input
               {...register(`visitors.${visitorIndex}.email`)}
               type="email"
@@ -657,10 +764,13 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
             <Package className="w-4 h-4 mr-2" />
             Belongings
           </h4>
+
           {belongingFields.length === 0 ? (
             <button
               type="button"
-              onClick={() => appendBelonging({ assetName: "" })}
+              onClick={() =>
+                appendBelonging({ assetName: "", vehicleNumber: "" })
+              }
               className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors self-start sm:self-center"
               title="Add belonging"
             >
@@ -669,7 +779,9 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
           ) : (
             <button
               type="button"
-              onClick={() => appendBelonging({ assetName: "" })}
+              onClick={() =>
+                appendBelonging({ assetName: "", vehicleNumber: "" })
+              }
               className="flex items-center px-2 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
             >
               <Plus className="w-3 h-3 mr-1" />
@@ -682,18 +794,32 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
           <div className="text-center py-4 text-gray-500 text-sm">
             <Package className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>No belongings added</p>
-            <p className="text-xs mt-1">Click the + icon above to add belongings</p>
+            <p className="text-xs mt-1">
+              Click the + icon above to add belongings
+            </p>
           </div>
         ) : (
           <div className="space-y-2">
             {belongingFields.map((belonging, belongingIndex) => (
               <div key={belonging.id} className="flex items-center gap-2">
                 <input
-                  {...register(`visitors.${visitorIndex}.belongings.${belongingIndex}.assetName`)}
+                  {...register(
+                    `visitors.${visitorIndex}.belongings.${belongingIndex}.assetName`,
+                  )}
                   type="text"
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                   placeholder="Enter asset name"
                 />
+
+                <input
+                  {...register(
+                    `visitors.${visitorIndex}.belongings.${belongingIndex}.vehicleNumber`,
+                  )}
+                  type="text"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                  placeholder="Enter Vehicle number"
+                />
+
                 <button
                   type="button"
                   onClick={() => removeBelonging(belongingIndex)}
@@ -707,7 +833,7 @@ const VisitorCard = ({ visitorIndex, register, control, errors, onRemove, canRem
         )}
       </div>
     </div>
-  )
+  );
 }
 
 export default VisitorForm

@@ -83,32 +83,38 @@ const Visitors = () => {
 
       const activeAppointments = appointmentsData.filter((appointment) => appointment.isAppointmentActive === true)
 
-      const transformedVisitors = activeAppointments.map((appointment, index) => ({
-        id: appointment.appointmentId || appointment._id || `APP${index + 1}`,
-        appointmentId: appointment.appointmentId || appointment._id,
-        name: appointment.visitors?.[0]?.fullname?.toUpperCase() || "UNKNOWN VISITOR",
-        mobile: appointment.visitors?.[0]?.mobile || "N/A",
-        company: appointment.visitors?.[0]?.company || "N/A",
-        status: "Active", // You can add status logic based on appointment dates
-        checkInTime: new Date(appointment.appointmentDate)
-          .toLocaleTimeString("en-IN", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-            timeZone: "UTC", // 🔑 IMPORTANT
-          }),
+      const transformedVisitors = activeAppointments.map(
+        (appointment, index) => ({
+          id: appointment.appointmentId || appointment._id || `APP${index + 1}`,
+          appointmentId: appointment.appointmentId || appointment._id,
+          name:
+            appointment.visitors?.[0]?.fullname?.toUpperCase() ||
+            "UNKNOWN VISITOR",
+          mobile: appointment.visitors?.[0]?.mobile || "N/A",
+          company: appointment.visitors?.[0]?.company || "N/A",
+          status: "Active", // You can add status logic based on appointment dates
+          checkInTime: new Date(appointment.appointmentDate).toLocaleTimeString(
+            "en-IN",
+            {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+              timeZone: "Asia/Kolkata", // 🔑 IMPORTANT
+            },
+          ),
 
-        personToVisit:
-          appointment.personToVisit?.fullname?.toUpperCase() ||
-          appointment.personToVisit?.name?.toUpperCase() ||
-          "UNKNOWN",
-        purpose: appointment.purposeOfVisit || "N/A",
-        appointmentDate: appointment.appointmentDate,
-        appointmentValidTill: appointment.appointmentValidTill,
-        plant: appointment.plant,
-        department: appointment.department,
-        areaToVisit: appointment.areaToVisit,
-      }))
+          personToVisit:
+            appointment.personToVisit?.fullname?.toUpperCase() ||
+            appointment.personToVisit?.name?.toUpperCase() ||
+            "UNKNOWN",
+          purpose: appointment.purposeOfVisit || "N/A",
+          appointmentDate: appointment.appointmentDate,
+          appointmentValidTill: appointment.appointmentValidTill,
+          plant: appointment.plant,
+          department: appointment.department,
+          areaToVisit: appointment.areaToVisit,
+        }),
+      );
 
       setAppointments(activeAppointments)
       setVisitors(transformedVisitors)
@@ -145,13 +151,15 @@ const Visitors = () => {
     }
   }
 
-  const addBelonging = () => {
-    const newBelonging = {
-      id: Date.now(),
-      assetName: "",
-    }
-    setBelongings([...belongings, newBelonging])
-  }
+const addBelonging = () => {
+  const newBelonging = {
+    id: Date.now(),
+    assetName: "",
+    vehicleNumber: "",
+  };
+  setBelongings([...belongings, newBelonging]);
+};
+
 
   const removeBelonging = (id) => {
     setBelongings(belongings.filter((item) => item.id !== id))
@@ -177,12 +185,15 @@ const Visitors = () => {
             fullname: formData.visitors[0].fullname,
             company: formData.visitors[0].company,
             email: formData.visitors[0].email,
-            belongings: belongings.map((item) => ({
-              assetName: item.assetName,
-            })),
+            belongings: belongings
+              .filter((b) => b.assetName?.trim() || b.vehicleNumber?.trim())
+              .map((b) => ({
+                assetName: b.assetName?.trim() || "",
+                vehicleNumber: b.vehicleNumber?.trim() || "",
+              })),
           },
         ],
-      }
+      };
 
       console.log("[v0] Saving appointment:", appointmentData)
 
