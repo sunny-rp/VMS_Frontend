@@ -1,6 +1,9 @@
 // services/api.js
+
 const API_BASE_URL =
   import.meta.env.VITE_PUBLIC_API_BASE_URL || "http://localhost:5000/api/v1";
+
+// -------------------- Utilities --------------------
 
 // Utility: safe JSON parsing
 const parseJsonSafe = async (response) => {
@@ -142,7 +145,8 @@ export const clearAuthCookies = () => {
   clearPersistedTokens();
 };
 
-// HTTP client utility
+// -------------------- HTTP Client --------------------
+
 export const apiClient = {
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
@@ -188,7 +192,7 @@ export const apiClient = {
 
         const errorData = await parseJsonSafe(response);
         const err = new Error(
-          errorData.message || `HTTP error! status: ${response.status}`,
+          errorData.message || `HTTP error! status: ${response.status}`
         );
         err.status = response.status;
         err.body = errorData;
@@ -263,6 +267,8 @@ export const apiClient = {
   },
 };
 
+// -------------------- Auth APIs --------------------
+
 export const authAPI = {
   login: async (credentials) => {
     const requestBody = { password: credentials.password };
@@ -279,7 +285,7 @@ export const authAPI = {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       const err = new Error(
-        errorData.message || `HTTP error! status: ${response.status}`,
+        errorData.message || `HTTP error! status: ${response.status}`
       );
       err.status = response.status;
       throw err;
@@ -299,7 +305,7 @@ export const authAPI = {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       const err = new Error(
-        errorData.message || `HTTP error! status: ${response.status}`,
+        errorData.message || `HTTP error! status: ${response.status}`
       );
       err.status = response.status;
       throw err;
@@ -329,16 +335,10 @@ export const authAPI = {
   },
 };
 
-// -------------------- BUSINESS APIs BELOW (UNCHANGED) --------------------
-// (keep your visitorsAPI, usersAPI, rolesAPI, etc. exactly as you already have)
+// -------------------- BUSINESS APIs BELOW --------------------
+// (kept same as your 2nd code; ONLY usersAPI.getAll is fixed to fetch all)
 
-// -------------------- ALL BUSINESS APIs BELOW (UNCHANGED) --------------------
-// visitorsAPI, usersAPI, rolesAPI, companiesAPI, countriesAPI, statesAPI,
-// citiesAPI, plantTypesAPI, plantsAPI, departmentsAPI, gatesAPI,
-// areasAPI, appointmentsAPI, dashboardAPI
-// (your existing implementations remain exactly the same)
-
-// ---- Example business APIs (unchanged except they use apiClient.request) ----
+// ---- Example business APIs ----
 
 export const visitorsAPI = {
   getAll: async (filters = {}) => {
@@ -347,7 +347,9 @@ export const visitorsAPI = {
     if (filters.status) queryParams.append("status", filters.status);
     if (filters.passType) queryParams.append("passType", filters.passType);
 
-    const endpoint = `/visitors${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+    const endpoint = `/visitors${
+      queryParams.toString() ? `?${queryParams.toString()}` : ""
+    }`;
     return await apiClient.request(endpoint);
   },
 
@@ -383,17 +385,27 @@ export const visitorsAPI = {
 };
 
 export const usersAPI = {
-  getAll: async (plantId = null, filters = {}) => {
+  // ✅ FIXED: default limit added so it doesn't fetch only first 10 users
+  // You can override: usersAPI.getAll(null, filters, { limit: 5000 })
+  getAll: async (plantId = null, filters = {}, { limit = 1000 } = {}) => {
+    // Some backends default limit=10 when no limit is sent.
+    // We ensure a limit is always sent.
     if (plantId) {
-      return await apiClient.request(`/visitor-form/fetch-users/?plantId=${plantId}`)
+      const qp = new URLSearchParams();
+      qp.append("plantId", plantId);
+      qp.append("limit", String(limit));
+      return await apiClient.request(`/visitor-form/fetch-users/?${qp.toString()}`);
     }
 
     const queryParams = new URLSearchParams();
+    queryParams.append("limit", String(limit));
     if (filters.search) queryParams.append("search", filters.search);
     if (filters.status) queryParams.append("status", filters.status);
     if (filters.role) queryParams.append("role", filters.role);
 
-    const endpoint = `/user/fetch-users${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+    const endpoint = `/user/fetch-users${
+      queryParams.toString() ? `?${queryParams.toString()}` : ""
+    }`;
     return await apiClient.request(endpoint);
   },
 
@@ -475,12 +487,9 @@ export const companiesAPI = {
     });
   },
   delete: async (companyId) => {
-    return await apiClient.request(
-      `/user/companies/delete-company/${companyId}`,
-      {
-        method: "DELETE",
-      },
-    );
+    return await apiClient.request(`/user/companies/delete-company/${companyId}`, {
+      method: "DELETE",
+    });
   },
 };
 
@@ -495,21 +504,15 @@ export const countriesAPI = {
     return await apiClient.request("/user/countries/fetch-countries");
   },
   update: async (countryId, countryData) => {
-    return await apiClient.request(
-      `/user/countries/edit-country/${countryId}`,
-      {
-        method: "PUT",
-        body: JSON.stringify(countryData),
-      },
-    );
+    return await apiClient.request(`/user/countries/edit-country/${countryId}`, {
+      method: "PUT",
+      body: JSON.stringify(countryData),
+    });
   },
   delete: async (countryId) => {
-    return await apiClient.request(
-      `/user/countries/delete-country/${countryId}`,
-      {
-        method: "DELETE",
-      },
-    );
+    return await apiClient.request(`/user/countries/delete-country/${countryId}`, {
+      method: "DELETE",
+    });
   },
 };
 
@@ -575,7 +578,7 @@ export const plantTypesAPI = {
       {
         method: "PUT",
         body: JSON.stringify(plantTypeData),
-      },
+      }
     );
   },
   delete: async (plantTypeId) => {
@@ -583,7 +586,7 @@ export const plantTypesAPI = {
       `/user/plant-types/delete-plant-type/${plantTypeId}`,
       {
         method: "DELETE",
-      },
+      }
     );
   },
 };
@@ -598,7 +601,7 @@ export const plantsAPI = {
   getAll: async (companyId = null) => {
     if (companyId) {
       return await apiClient.request(
-        `/visitor-form/plants/fetch-plants/?companyId=${companyId}`,
+        `/visitor-form/plants/fetch-plants/?companyId=${companyId}`
       );
     }
     return await apiClient.request("/user/plants/fetch-plants");
@@ -626,7 +629,7 @@ export const departmentsAPI = {
   getAll: async (plantId = null) => {
     if (plantId) {
       return await apiClient.request(
-        `/visitor-form/departments/fetch-departments/?plantId=${plantId}`,
+        `/visitor-form/departments/fetch-departments/?plantId=${plantId}`
       );
     }
     return await apiClient.request("/user/departments/fetch-departments");
@@ -637,7 +640,7 @@ export const departmentsAPI = {
       {
         method: "PUT",
         body: JSON.stringify(departmentData),
-      },
+      }
     );
   },
   delete: async (departmentId) => {
@@ -645,7 +648,7 @@ export const departmentsAPI = {
       `/user/departments/delete-department/${departmentId}`,
       {
         method: "DELETE",
-      },
+      }
     );
   },
 };
@@ -683,7 +686,7 @@ export const areasAPI = {
   getAll: async (plantId = null) => {
     if (plantId) {
       return await apiClient.request(
-        `/visitor-form/areas/fetch-areas/?plantId=${plantId}`,
+        `/visitor-form/areas/fetch-areas/?plantId=${plantId}`
       );
     }
     return await apiClient.request("/user/areas/fetch-areas");
@@ -708,7 +711,7 @@ export const appointmentsAPI = {
       {
         method: "POST",
         body: JSON.stringify(appointmentData),
-      },
+      }
     );
   },
   getAll: async (filters = {}) => {
@@ -716,7 +719,9 @@ export const appointmentsAPI = {
     if (filters.search) queryParams.append("search", filters.search);
     if (filters.status) queryParams.append("status", filters.status);
 
-    const endpoint = `/user/appointments/fetch-appointments${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+    const endpoint = `/user/appointments/fetch-appointments${
+      queryParams.toString() ? `?${queryParams.toString()}` : ""
+    }`;
     return await apiClient.request(endpoint);
   },
   getById: async (appointmentId) => {
@@ -727,7 +732,7 @@ export const appointmentsAPI = {
       import.meta.env.VITE_PUBLIC_API_BASE_URL ||
       "http://localhost:5000/api/v1";
     const response = await fetch(
-      `${API_BASE_URL}/user/appointments/${appointmentId}`,
+      `${API_BASE_URL}/user/appointments/${appointmentId}`
     );
     if (!response.ok) {
       throw new Error("Appointment not found");
@@ -735,9 +740,7 @@ export const appointmentsAPI = {
     return await response.json();
   },
   fetchVisitorByAptId: async (appointmentId) => {
-    return await apiClient.request(
-      `/user/fetch-visitor-by-aptid/${appointmentId}`,
-    );
+    return await apiClient.request(`/user/fetch-visitor-by-aptid/${appointmentId}`);
   },
   update: async (appointmentId, updateData) => {
     return await apiClient.request(`/user/appointments/${appointmentId}`, {
@@ -757,7 +760,7 @@ export const appointmentsAPI = {
       {
         method: "POST",
         body: JSON.stringify(requestData),
-      },
+      }
     );
   },
   checkOut: async (appointmentId, qrData = null) => {
@@ -767,7 +770,7 @@ export const appointmentsAPI = {
       {
         method: "POST",
         body: JSON.stringify(requestData),
-      },
+      }
     );
   },
 };
