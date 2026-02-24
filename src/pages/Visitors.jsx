@@ -1,87 +1,72 @@
-"use client";
+"use client"
 
-import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, X } from "lucide-react";
-import { toast } from "sonner";
-import { appointmentsAPI } from "../services/api";
-import VisitorForm from "./VisitorForm";
+import { useEffect, useMemo, useState } from "react"
+import { Plus, Search, X } from "lucide-react"
+import { toast } from "sonner"
+import { appointmentsAPI } from "../services/api"
+import VisitorForm from "./VisitorForm"
 
 const PASS_UI = {
-  PURPLE: {
-    badge: "bg-purple-100 text-purple-800 border-purple-200",
-  },
-  RED: {
-    badge: "bg-red-100 text-red-800 border-red-200",
-  },
-  GREEN: {
-    badge: "bg-green-100 text-green-800 border-green-200",
-  },
-  YELLOW: {
-    badge: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  },
-  PENDING: {
-    badge: "bg-gray-100 text-gray-800 border-gray-200",
-  },
-  REJECT: {
-    badge: "bg-gray-200 text-gray-900 border-gray-300",
-  },
-};
+  PURPLE: { badge: "bg-purple-100 text-purple-800 border-purple-200" },
+  RED: { badge: "bg-red-100 text-red-800 border-red-200" },
+  GREEN: { badge: "bg-green-100 text-green-800 border-green-200" },
+  YELLOW: { badge: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+  PENDING: { badge: "bg-gray-100 text-gray-800 border-gray-200" },
+  REJECT: { badge: "bg-gray-200 text-gray-900 border-gray-300" },
+}
 
 const normalizePassType = (v) => {
-  const t = String(v || "PENDING").toUpperCase();
-  return PASS_UI[t] ? t : "PENDING";
-};
+  const t = String(v || "PENDING").toUpperCase()
+  return PASS_UI[t] ? t : "PENDING"
+}
 
 const Visitors = () => {
-  const [visitors, setVisitors] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [visitors, setVisitors] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const [searchVisitor, setSearchVisitor] = useState("");
-  const [searchPersonToVisit, setSearchPersonToVisit] = useState("");
+  const [searchVisitor, setSearchVisitor] = useState("")
+  const [searchPersonToVisit, setSearchPersonToVisit] = useState("")
 
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(false)
 
-  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-  const [selectedVisitor, setSelectedVisitor] = useState(null);
-  const [checkingOut, setCheckingOut] = useState(false);
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false)
+  const [selectedVisitor, setSelectedVisitor] = useState(null)
+  const [checkingOut, setCheckingOut] = useState(false)
 
   const loadData = async () => {
     try {
-      setLoading(true);
+      setLoading(true)
 
       const appointmentsResponse = await appointmentsAPI.getAll({
         search: (searchVisitor || searchPersonToVisit || "").trim(),
-      });
+      })
 
-      // ✅ supports: axios -> { data: { statusCode, data: [...] } }
-      // or direct -> { statusCode, data: [...] }
-      const raw = appointmentsResponse?.data ?? appointmentsResponse;
+      const raw = appointmentsResponse?.data ?? appointmentsResponse
       const appointmentsData = Array.isArray(raw)
         ? raw
         : Array.isArray(raw?.data)
           ? raw.data
-          : [];
+          : []
 
       const activeAppointments = appointmentsData.filter(
-        (a) => a?.isAppointmentActive === true,
-      );
+        (a) => a?.isAppointmentActive === true
+      )
 
       const transformed = activeAppointments.map((appointment, index) => {
-        const v0 = appointment?.visitors?.[0];
-        const passType = normalizePassType(appointment?.appointmentPassType);
+        const v0 = appointment?.visitors?.[0]
+        const passType = normalizePassType(appointment?.appointmentPassType)
 
-        // ✅ FIX: show real check-in time if available
         const timeSource =
-          appointment?.checkedInTime || appointment?.appointmentDate;
+          appointment?.checkedInTime || appointment?.appointmentDate
 
         const displayTime = timeSource
           ? new Date(timeSource).toLocaleTimeString("en-IN", {
               hour: "2-digit",
               minute: "2-digit",
               hour12: true,
-              timeZone: "Asia/Kolkata",
+              timeZone: "UTC",
             })
-          : "N/A";
+          : "N/A"
 
         return {
           id: appointment.appointmentId || appointment._id || `APP${index + 1}`,
@@ -97,125 +82,121 @@ const Visitors = () => {
             "UNKNOWN",
           purpose: appointment.purposeOfVisit || "N/A",
           passType,
-
-          // ✅ now correct
           checkInTime: displayTime,
-        };
-      });
+        }
+      })
 
-      setVisitors(transformed);
+      setVisitors(transformed)
     } catch (error) {
-      console.error("[Visitors] Error loading appointments:", error);
-      setVisitors([]);
+      console.error("[Visitors] Error loading appointments:", error)
+      setVisitors([])
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
-
+  }
 
   useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    loadData()
+  }, [])
 
-  const handleSearch = () => loadData();
+  const handleSearch = () => loadData()
 
   const handleCheckoutClick = (visitor) => {
-    setSelectedVisitor(visitor);
-    setShowCheckoutModal(true);
-  };
+    setSelectedVisitor(visitor)
+    setShowCheckoutModal(true)
+  }
 
   const handleCheckoutConfirm = async () => {
-    if (!selectedVisitor) return;
+    if (!selectedVisitor) return
 
     try {
-      setCheckingOut(true);
+      setCheckingOut(true)
       const response = await appointmentsAPI.checkOut(
-        selectedVisitor.appointmentId,
-      );
+        selectedVisitor.appointmentId
+      )
 
       if (response?.success) {
         toast.success(
-          `${selectedVisitor.name} has been checked out successfully!`,
-        );
-        setShowCheckoutModal(false);
-        setSelectedVisitor(null);
-        loadData();
+          `${selectedVisitor.name} has been checked out successfully!`
+        )
+        setShowCheckoutModal(false)
+        setSelectedVisitor(null)
+        loadData()
       } else {
-        toast.error("Failed to check out visitor. Please try again.");
+        toast.error("Failed to check out visitor. Please try again.")
       }
     } catch (error) {
-      console.error("[Visitors] checkout error:", error);
+      console.error("[Visitors] checkout error:", error)
       toast.error(
-        "Error checking out visitor: " + (error.message || "Unknown error"),
-      );
+        "Error checking out visitor: " + (error.message || "Unknown error")
+      )
     } finally {
-      setCheckingOut(false);
+      setCheckingOut(false)
     }
-  };
+  }
 
   const handleCheckoutCancel = () => {
-    setShowCheckoutModal(false);
-    setSelectedVisitor(null);
-  };
+    setShowCheckoutModal(false)
+    setSelectedVisitor(null)
+  }
 
   const filteredVisitors = useMemo(() => {
     return visitors.filter((v) => {
       const matchesVisitorName = v.name
         .toLowerCase()
-        .includes(searchVisitor.toLowerCase());
+        .includes(searchVisitor.toLowerCase())
       const matchesPersonToVisit = v.personToVisit
         .toLowerCase()
-        .includes(searchPersonToVisit.toLowerCase());
-      return matchesVisitorName && matchesPersonToVisit;
-    });
-  }, [visitors, searchVisitor, searchPersonToVisit]);
+        .includes(searchPersonToVisit.toLowerCase())
+      return matchesVisitorName && matchesPersonToVisit
+    })
+  }, [visitors, searchVisitor, searchPersonToVisit])
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6 overflow-x-hidden">
       {!showForm ? (
         <>
           {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-6">
-              <h1 className="text-2xl font-bold text-gray-900">
+          <div className="mb-6 sm:mb-8">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
                 Visitor Management
               </h1>
               <button
                 onClick={() => setShowForm(true)}
-                className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+                className="flex items-center gap-1.5 sm:gap-2 bg-blue-500 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors text-sm sm:text-base"
               >
-                <Plus className="w-5 h-5" />
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
                 Add Visitor
               </button>
             </div>
 
-            <div className="flex gap-4">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
                 <input
                   type="text"
                   placeholder="Search Visitor Name"
                   value={searchVisitor}
                   onChange={(e) => setSearchVisitor(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
                 />
               </div>
 
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
                 <input
                   type="text"
                   placeholder="Search Person to Visit"
                   value={searchPersonToVisit}
                   onChange={(e) => setSearchPersonToVisit(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
                 />
               </div>
 
               <button
                 onClick={handleSearch}
-                className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                className="w-full sm:w-auto px-6 py-2.5 sm:py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm sm:text-base"
               >
                 Search
               </button>
@@ -224,49 +205,47 @@ const Visitors = () => {
 
           {/* Cards */}
           <div className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6">
               Active Visitors
             </h2>
 
             {loading ? (
-              <div className="bg-blue-50 text-blue-700 p-4 rounded-lg text-center">
+              <div className="bg-blue-50 text-blue-700 p-4 rounded-lg text-center text-sm sm:text-base">
                 Loading visitors...
               </div>
             ) : filteredVisitors.length === 0 ? (
-              <div className="bg-gray-50 text-gray-600 p-8 rounded-lg text-center">
-                <div className="text-4xl mb-2">👥</div>
+              <div className="bg-gray-50 text-gray-600 p-6 sm:p-8 rounded-lg text-center">
                 <p className="font-medium">No Active Visitors</p>
                 <p className="text-sm text-gray-500 mt-1">
-                  Click "Add Visitor" to register a new visitor
+                  {"Click \"Add Visitor\" to register a new visitor"}
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {filteredVisitors.map((visitor) => {
-                  const passType = normalizePassType(visitor.passType);
-                  const ui = PASS_UI[passType];
+                  const passType = normalizePassType(visitor.passType)
+                  const ui = PASS_UI[passType]
 
                   return (
                     <div
                       key={visitor.id}
-                      className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+                      className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-shadow"
                     >
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-lg text-gray-900 mb-1">
+                      <div className="flex items-start justify-between mb-3 sm:mb-4">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-base sm:text-lg text-gray-900 mb-1 truncate">
                             {visitor.name}
                           </h3>
-
                           <span
-                            className={`inline-flex items-center gap-2 text-xs px-2 py-1 rounded-full font-medium border ${ui.badge}`}
+                            className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-medium border ${ui.badge}`}
                           >
-                            <span className="w-2 h-2 rounded-full bg-current opacity-60" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60" />
                             {passType}
                           </span>
                         </div>
 
-                        <div className="text-right">
-                          <p className="text-sm text-gray-500 font-medium">
+                        <div className="text-right flex-shrink-0 ml-2">
+                          <p className="text-xs sm:text-sm text-gray-500 font-medium">
                             {visitor.id}
                           </p>
                           <p className="text-xs text-gray-400">
@@ -275,34 +254,26 @@ const Visitors = () => {
                         </div>
                       </div>
 
-                      <div className="space-y-2 text-sm">
+                      <div className="space-y-1.5 sm:space-y-2 text-sm">
                         <div className="flex items-center gap-2">
-                          <span className="text-gray-400">📱</span>
-                          <span className="text-gray-700">
-                            {visitor.mobile}
-                          </span>
+                          <span className="text-gray-400 flex-shrink-0">📱</span>
+                          <span className="text-gray-700 truncate">{visitor.mobile}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-gray-400">🏢</span>
-                          <span className="text-gray-700">
-                            {visitor.company}
-                          </span>
+                          <span className="text-gray-400 flex-shrink-0">🏢</span>
+                          <span className="text-gray-700 truncate">{visitor.company}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-gray-400">👤</span>
-                          <span className="text-gray-700">
-                            {visitor.personToVisit}
-                          </span>
+                          <span className="text-gray-400 flex-shrink-0">👤</span>
+                          <span className="text-gray-700 truncate">{visitor.personToVisit}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-gray-400">📋</span>
-                          <span className="text-gray-700">
-                            {visitor.purpose}
-                          </span>
+                          <span className="text-gray-400 flex-shrink-0">📋</span>
+                          <span className="text-gray-700 truncate">{visitor.purpose}</span>
                         </div>
                       </div>
 
-                      <div className="mt-4 pt-4 border-t border-gray-100">
+                      <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-100">
                         <div className="flex gap-2">
                           <button className="flex-1 bg-blue-50 text-blue-600 py-2 px-3 rounded text-sm font-medium hover:bg-blue-100 transition-colors">
                             View Details
@@ -316,41 +287,56 @@ const Visitors = () => {
                         </div>
                       </div>
                     </div>
-                  );
+                  )
                 })}
               </div>
             )}
           </div>
+
+          {/* Pending check-outs badge */}
+          <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6">
+            <div className="bg-red-500 text-white p-3 sm:p-4 rounded-lg shadow-lg min-w-[100px] sm:min-w-[140px] text-center">
+              <div className="text-xs sm:text-sm font-medium">Pending</div>
+              <div className="text-xs sm:text-sm font-medium">Check-Outs</div>
+              <div className="text-2xl sm:text-3xl font-bold mt-1 sm:mt-2">0</div>
+            </div>
+          </div>
         </>
       ) : (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">
-              Visitor Entry
-            </h2>
-            <button
-              onClick={() => setShowForm(false)}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-          <div className="p-6">
-            <VisitorForm
-              onSuccess={() => {
-                setShowForm(false);
-                loadData();
-              }}
-            />
+        /* Visitor Form - full screen on mobile, card on desktop */
+        <div className="fixed inset-0 z-50 bg-gray-50 sm:bg-black/40 overflow-y-auto">
+          <div className="min-h-full sm:min-h-0 sm:flex sm:items-start sm:justify-center sm:py-8 sm:px-4">
+            <div className="w-full sm:max-w-3xl bg-white sm:rounded-xl sm:shadow-xl">
+              <div className="sticky top-0 z-10 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 bg-white sm:rounded-t-xl">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
+                  Visitor Entry
+                </h2>
+                <button
+                  onClick={() => setShowForm(false)}
+                  className="p-2 -mr-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100"
+                >
+                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+              </div>
+              <div className="p-4 sm:p-6">
+                <VisitorForm
+                  embedded
+                  onSuccess={() => {
+                    setShowForm(false)
+                    loadData()
+                  }}
+                />
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Checkout modal */}
+      {/* Checkout confirmation modal */}
       {showCheckoutModal && selectedVisitor && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-xl shadow-xl">
+            <div className="p-5 sm:p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">
                   Confirm Check Out
@@ -364,7 +350,7 @@ const Visitors = () => {
               </div>
 
               <div className="mb-6">
-                <p className="text-gray-600 mb-2">
+                <p className="text-gray-600 mb-3 text-sm sm:text-base">
                   Are you sure you want to check out the following visitor?
                 </p>
                 <div className="bg-gray-50 rounded-lg p-4">
@@ -387,14 +373,14 @@ const Visitors = () => {
                 <button
                   onClick={handleCheckoutCancel}
                   disabled={checkingOut}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 text-sm sm:text-base"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCheckoutConfirm}
                   disabled={checkingOut}
-                  className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 text-sm sm:text-base"
                 >
                   {checkingOut ? "Checking Out..." : "Yes, Check Out"}
                 </button>
@@ -404,7 +390,7 @@ const Visitors = () => {
         </div>
       )}
     </div>
-  );
-};
+  )
+}
 
-export default Visitors;
+export default Visitors
